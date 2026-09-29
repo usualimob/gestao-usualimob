@@ -1,0 +1,30 @@
+{
+  "name": "gestao-usualimob",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "check:sql": "node scripts/check_live_sql.mjs",
+    "check:dimob": "node --experimental-strip-types scripts/check_dimob.mjs",
+    "check:docx": "node --experimental-strip-types scripts/check_contract_document.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.1",
+    "@xmldom/xmldom": "0.9.12",
+    "jszip": "3.10.2",
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.15",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

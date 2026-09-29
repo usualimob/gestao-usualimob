@@ -1,0 +1,9 @@
+banco/
+codigo/
+.git/
+supabase/sql-editor/02_dados.sql
+.env*
+!.env.example
+*.db
+*.sqlite
+*.csv

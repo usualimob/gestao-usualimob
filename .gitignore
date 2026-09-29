@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env*
+!.env.example
+banco/
+codigo/
+__pycache__/
+*.pyc
+supabase/sql-editor/02_dados.sql
+
+*.db
+*.sqlite
+*.csv
