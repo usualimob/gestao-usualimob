@@ -1,4 +1,4 @@
--- Gerado de banco/gestao.db; SHA-256: ed36954661652c7c1f07c8df1d07c724376e03eba4d599372db14cbcaf044ab4
+-- Gerado de banco/gestao.db; SHA-256: 43298f4bde0a5ee55a2989824801d793e8731dcba47b416d25adb0d828b33977
 -- Execute somente no projeto Supabase correto e vazio. Arquivo UTF-8.
 
 

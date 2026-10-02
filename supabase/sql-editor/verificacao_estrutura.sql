@@ -1,6 +1,5 @@
--- Gerado do esquema de banco/gestao.db; SHA-256 da origem: ed36954661652c7c1f07c8df1d07c724376e03eba4d599372db14cbcaf044ab4
--- Execute após 01_schema.sql, antes dos scripts 04/05. Após eles, use 07_verificacao_final.sql.
--- Todas as linhas devem ser OK.
+-- Gerado do esquema de banco/gestao.db; SHA-256 da origem: 43298f4bde0a5ee55a2989824801d793e8731dcba47b416d25adb0d828b33977
+-- Execute após 01_schema.sql, antes de carregar os dados. Todas as linhas devem ser OK.
 WITH esperado(tabela, colunas, defaults, primarias, unicas, estrangeiras) AS (
   VALUES
     ('caixas', 'nome:text:1:0|valor:numeric:1:0', 1, 1, 0, 0),

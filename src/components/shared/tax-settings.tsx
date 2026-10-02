@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function TaxSettings({ notes }: { notes: Record<string, unknown>[] }) {
+export function TaxSettings({ notes, onSaved }: { notes: Record<string, unknown>[]; onSaved?: () => void }) {
   const [rent, setRent] = useState(0);
   const [sale, setSale] = useState(0);
   const [notice, setNotice] = useState("");
@@ -26,6 +26,7 @@ export function TaxSettings({ notes }: { notes: Record<string, unknown>[] }) {
       { chave: "aliq_aluguel", valor: String(rent) }, { chave: "aliq_venda", valor: String(sale) },
     ], { onConflict: "chave" });
     setNotice(error ? error.message : "Alíquotas salvas.");
+    if (!error) onSaved?.();
   }
   return <section className="panel"><h2>Alíquotas e previsão de impostos</h2>
     <p>Previsão das notas emitidas: <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(estimate)}</strong></p>

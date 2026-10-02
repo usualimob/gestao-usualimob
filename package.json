@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "check:sql": "node scripts/check_live_sql.mjs",
     "check:dimob": "node --experimental-strip-types scripts/check_dimob.mjs",
-    "check:docx": "node --experimental-strip-types scripts/check_contract_document.mjs"
+    "check:docx": "node --experimental-strip-types scripts/check_contract_document.mjs",
+    "check:legacy": "node --experimental-strip-types scripts/check_legacy_derived.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

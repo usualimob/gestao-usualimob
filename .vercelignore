@@ -2,6 +2,7 @@ banco/
 codigo/
 .git/
 supabase/sql-editor/02_dados.sql
+supabase/sql-editor/09_atualizacao_dados.sql
 .env*
 !.env.example
 *.db

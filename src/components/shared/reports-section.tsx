@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { generateDimob } from "@/features/legacy/dimob";
+import { commission, gross } from "@/features/legacy/derived";
 
 type Row = Record<string, unknown>;
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -12,7 +13,6 @@ const labels: Record<string, string> = {
   endereco: "Endereço", uf: "UF", cod_municipio: "Código do município", cep: "CEP",
 };
 const monthNow = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; };
-const gross = (row: Row) => ["aluguel", "tx_incendio", "fianca", "condominio", "iptu", "agua_luz"].reduce((sum, key) => sum + Number(row[key] || 0), 0);
 
 export function ReportsSection() {
   const [competencia, setCompetencia] = useState(monthNow);
@@ -84,8 +84,9 @@ export function ReportsSection() {
     ? (data.lancamentos ?? []).filter((row) => row.competencia === competencia).map((row) => {
         const contract = contracts.get(Number(row.contrato_numero));
         return [row.contrato_numero, contract?.inquilino, contract?.proprietario, money.format(Number(row.aluguel || 0)),
-          money.format(gross(row)), money.format(Number(row.aluguel || 0) * Number(row.pct_imob || 0)),
-          row.recebido_em || "Pendente", row.repassado_em || "Pendente"];
+          money.format(gross(row)), `${(Number(row.pct_imob || 0) * 100).toLocaleString("pt-BR")}%`,
+          money.format(commission(row)), money.format(gross(row) - commission(row)), row.vencimento_dia,
+          row.recebido_em || "—", row.via || "—", row.repassado_em || "—"];
       })
     : kind === "despesas"
       ? (data.despesas ?? []).filter((row) => row.competencia === competencia).map((row) =>
@@ -103,7 +104,7 @@ export function ReportsSection() {
               money.format(Number(row.aluguel || 0) * Number(row.pct_imob || 0))];
           });
   const columns = kind === "mensal"
-    ? ["Contrato", "Inquilino", "Proprietário", "Aluguel", "Bruto", "Comissão", "Recebido", "Repassado"]
+    ? ["Nº", "Inquilino", "Proprietário", "Aluguel", "Bruto", "%", "Taxa", "Líquido", "Venc.", "Recebido", "Via", "Repassado"]
     : kind === "despesas"
       ? ["Descrição", "Categoria", "Origem", "Valor", "Vencimento", "Situação"]
       : kind === "pendencias"
@@ -113,6 +114,12 @@ export function ReportsSection() {
     : kind === "despesas" ? `Despesas · ${competencia}`
       : kind === "pendencias" ? "Pendências em aberto"
         : `Conferência DIMOB · ${year}`;
+  const monthly = (data.lancamentos ?? []).filter((row) => row.competencia === competencia);
+  const expenses = (data.despesas ?? []).filter((row) => row.competencia === competencia);
+  const reportTotal = kind === "mensal" ? money.format(monthly.reduce((sum, row) => sum + gross(row), 0))
+    : kind === "despesas" ? money.format(expenses.reduce((sum, row) => sum + Number(row.valor || 0), 0))
+      : kind === "pendencias" ? money.format((data.pendencias ?? []).filter((row) => !row.repassado_em).reduce((sum, row) => sum + Number(row.valor || 0), 0))
+        : money.format((data.lancamentos ?? []).filter((row) => String(row.recebido_em ?? "").startsWith(String(year))).reduce((sum, row) => sum + Number(row.aluguel || 0), 0));
 
   return <div className="reports-page">
     <div className="page-intro"><div><p className="eyebrow">Dados da equipe</p><h1>Relatórios</h1><p className="muted">Confira os registros antes de imprimir ou salvar em PDF pelo navegador.</p></div></div>
@@ -132,7 +139,7 @@ export function ReportsSection() {
       <div className="table-scroll"><table><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
         <tbody>{filtered.length ? filtered.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{String(value ?? "—")}</td>)}</tr>)
           : <tr><td colSpan={columns.length}>Nenhum registro no período.</td></tr>}</tbody></table></div>
-      <p className="muted">Total de registros: {filtered.length}</p>
+      <p className="muted">Total de registros: {filtered.length} · Valor total: {reportTotal}</p>
     </section>
     {kind === "dimob" && !loading && <section className="panel no-print"><h2>Dados do declarante</h2>
       <form className="form-grid" onSubmit={saveConfig}>{fields.map((field) => <label key={field} htmlFor={field}>{labels[field]}

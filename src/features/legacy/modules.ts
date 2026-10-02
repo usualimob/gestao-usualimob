@@ -1,7 +1,7 @@
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "number" | "date" | "month" | "checkbox" | "textarea" | "contract" | "person" | "property" | "select";
+  type?: "text" | "number" | "percent" | "date" | "month" | "checkbox" | "textarea" | "contract" | "person" | "property" | "select";
   options?: string[];
   required?: boolean;
 };
@@ -20,7 +20,7 @@ const contract = field("contrato_numero", "Contrato", "contract");
 
 export const modules: Record<string, Module> = {
   contratos: {
-    table: "contratos", title: "Contratos", key: "numero", columns: ["numero", "proprietario", "inquilino", "endereco", "aluguel", "pct_imob", "vencimento_dia", "ativo"],
+    table: "contratos", title: "Contratos", key: "numero", columns: ["numero", "proprietario", "inquilino", "endereco", "mes_reajuste", "garantia", "aluguel", "total_bruto", "pct_imob", "total_liquido", "vencimento_dia", "ativo"],
     fields: [
       field("numero", "Número", "number", true), field("proprietario", "Proprietário"), field("inquilino", "Inquilino"),
       field("endereco", "Endereço"), field("proprietario_id", "Vincular proprietário", "person"),
@@ -29,17 +29,17 @@ export const modules: Record<string, Module> = {
       money("aluguel", "Aluguel"), field("garantia", "Garantia"), money("caucao", "Caução"),
       money("adiantado", "Adiantado"), money("tx_incendio", "Taxa de incêndio"), money("fianca", "Fiança"),
       money("condominio", "Condomínio"), money("iptu", "IPTU"), money("agua_luz", "Água e luz"),
-      money("pct_imob", "Comissão (fração, ex.: 0,1)"), field("vencimento_dia", "Dia do vencimento", "number"),
+      field("pct_imob", "Comissão da imobiliária (%)", "percent"), field("vencimento_dia", "Dia do vencimento", "number"),
       field("ativo", "Ativo", "checkbox"), field("obs", "Observações", "textarea"),
     ],
   },
   lancamentos: {
-    table: "lancamentos", title: "Lançamentos", key: "id", columns: ["contrato_numero", "competencia", "aluguel", "recebido_em", "via", "repassado_em"],
+    table: "lancamentos", title: "Lançamentos", key: "id", columns: ["contrato_numero", "inquilino", "proprietario", "aluguel", "total_bruto", "pct_imob", "taxa", "total_liquido", "vencimento_dia", "recebido_em", "via", "repassado_em", "situacao"],
     create: false,
     fields: [
       money("aluguel", "Aluguel"), money("caucao", "Caução"), money("adiantado", "Adiantado"),
       money("tx_incendio", "Taxa de incêndio"), money("fianca", "Fiança"), money("condominio", "Condomínio"),
-      money("iptu", "IPTU"), money("agua_luz", "Água e luz"), money("pct_imob", "Comissão (fração)"),
+      money("iptu", "IPTU"), money("agua_luz", "Água e luz"), field("pct_imob", "Comissão da imobiliária (%)", "percent"),
       field("vencimento_dia", "Dia do vencimento", "number"), field("recebido_em", "Recebido em", "date"),
       field("via", "Via de recebimento"), field("repassado_em", "Repassado em", "date"), field("obs", "Observações", "textarea"),
     ],
@@ -71,7 +71,7 @@ export const modules: Record<string, Module> = {
     ],
   },
   iptus: {
-    table: "iptus", title: "IPTUs", key: "id", columns: ["responsavel", "contrato_numero", "valor_total", "valor_parcela", "parcelas", "parcelas_pagas", "pago_ate"],
+    table: "iptus", title: "IPTUs", key: "id", columns: ["responsavel", "responsabilidade", "contrato_numero", "valor_total", "valor_parcela", "parcelas", "parcelas_pagas", "saldo", "vencimento", "pago_ate"],
     fields: [
       field("responsavel", "Responsável", "text", true), choice("responsabilidade", "Responsabilidade", ["Imobiliária", "Inquilino"]),
       contract, field("indice_cadastral", "Índice cadastral"), field("cpf_titular", "CPF do titular"),
@@ -82,7 +82,7 @@ export const modules: Record<string, Module> = {
     ],
   },
   condominios: {
-    table: "condominios", title: "Condomínios", key: "id", columns: ["responsavel", "administradora", "contrato_numero", "valor_parcela", "parcelas_pagas", "pago_ate"],
+    table: "condominios", title: "Condomínios", key: "id", columns: ["responsavel", "administradora", "responsabilidade", "contrato_numero", "valor_total", "valor_parcela", "parcelas", "parcelas_pagas", "vencimento", "pago_ate"],
     fields: [
       field("responsavel", "Responsável", "text", true), choice("responsabilidade", "Responsabilidade", ["Imobiliária", "Inquilino"]),
       contract, field("administradora", "Administradora"), money("valor_total", "Valor total"),
@@ -92,7 +92,7 @@ export const modules: Record<string, Module> = {
     ],
   },
   seguros: {
-    table: "seguros", title: "Seguros", key: "id", columns: ["seguradora", "contrato_numero", "valor_parcela", "parcelas", "parcelas_pagas", "pago_ate"],
+    table: "seguros", title: "Seguros", key: "id", columns: ["seguradora", "contrato_numero", "valor_parcela", "vencimento", "parcelas", "parcelas_pagas", "pago_ate", "obs"],
     fields: [
       field("seguradora", "Seguradora", "text", true), contract, money("valor_parcela", "Valor da parcela"),
       field("vencimento", "Vencimento"), field("parcelas", "Parcelas", "number"),
@@ -101,11 +101,11 @@ export const modules: Record<string, Module> = {
     ],
   },
   notas_fiscais: {
-    table: "notas_fiscais", title: "Notas fiscais", key: "id", columns: ["contrato_numero", "competencia", "valor", "status", "emitida_em"],
+    table: "notas_fiscais", title: "Notas fiscais", key: "id", columns: ["competencia", "contrato_numero", "inquilino", "proprietario", "atividade", "valor", "imposto", "status", "emitida_em", "obs"],
     create: false,
     fields: [
       money("valor", "Valor"), choice("status", "Situação", ["a emitir", "emitida"]),
-      field("emitida_em", "Emitida em", "date"), field("atividade", "Atividade"),
+      field("emitida_em", "Emitida em", "date"), choice("atividade", "Atividade", ["aluguel", "venda"]),
       field("obs", "Observações", "textarea"),
     ],
   },

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TaxSettings } from "@/components/shared/tax-settings";
 import { DashboardPanels, ControlPanels } from "@/components/shared/operations-overview";
 import { ContractModels } from "@/components/shared/contract-models";
+import { commission, deriveRow, gross } from "@/features/legacy/derived";
 
 type Row = Record<string, unknown>;
 type Editor = { module: Module; row?: Row };
@@ -14,12 +15,13 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const now = () => { const date = new Date(); return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); };
 const month = () => now().slice(0, 7);
 const amount = (value: unknown) => Number(value || 0);
-const gross = (row: Row) => ["aluguel", "tx_incendio", "fianca", "condominio", "iptu", "agua_luz"].reduce((total, key) => total + amount(row[key]), 0);
-const moneyFields = new Set(["aluguel", "caucao", "adiantado", "tx_incendio", "fianca", "condominio", "iptu", "agua_luz", "valor", "valor_total", "valor_parcela", "valor_materiais", "valor_mao_obra"]);
-const labelFor = (module: Module, name: string) => module.fields.find((field) => field.name === name)?.label ?? name.replaceAll("_", " ");
+const moneyFields = new Set(["aluguel", "caucao", "adiantado", "tx_incendio", "fianca", "condominio", "iptu", "agua_luz", "valor", "valor_total", "valor_parcela", "valor_materiais", "valor_mao_obra", "total_bruto", "taxa", "total_liquido", "saldo", "imposto"]);
+const computedLabels: Record<string, string> = { total_bruto: "Total bruto", taxa: "Comissão", total_liquido: "Total líquido", saldo: "Saldo", imposto: "Imposto", situacao: "Situação" };
+const labelFor = (module: Module, name: string) => module.fields.find((field) => field.name === name)?.label ?? computedLabels[name] ?? name.replaceAll("_", " ");
 const valueFor = (module: Module, name: string, value: unknown) => {
   if (value === null || value === undefined || value === "") return "—";
-  if (name === "ativo" || name.startsWith("tem_")) return Number(value) ? "Sim" : "Não";
+  if (name === "ativo") return Number(value) ? "Ativo" : "Encerrado";
+  if (name.startsWith("tem_")) return Number(value) ? "Sim" : "Não";
   if (moneyFields.has(name)) return currency.format(amount(value));
   if (name === "pct_imob") return `${(amount(value) * 100).toLocaleString("pt-BR")}%`;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split("-").reverse().join("/");
@@ -40,10 +42,12 @@ function FieldInput({ field, row, lookup }: { field: Field; row?: Row; lookup: R
     if (field.type === "contract") options = (lookup.contratos ?? []).map((item) => ({ value: String(item.numero), label: `#${item.numero} · ${item.inquilino}` }));
     if (field.type === "person") options = (lookup.pessoas ?? []).filter((item) => !field.name.includes("proprietario") || item.tipo === "proprietario").filter((item) => !field.name.includes("inquilino") || item.tipo === "inquilino").map((item) => ({ value: String(item.id), label: String(item.nome) }));
     if (field.type === "property") options = (lookup.imoveis ?? []).map((item) => ({ value: String(item.id), label: String(item.endereco) }));
-    return <label htmlFor={common.id}>{field.label}<select {...common} defaultValue={String(value ?? "")}><option value="">— selecione —</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+    const relation = ["contract", "person", "property"].includes(field.type ?? "");
+    return <label htmlFor={common.id}>{field.label}<select {...common} defaultValue={String(value ?? (relation ? "" : options[0]?.value ?? ""))}>{relation && <option value="">— sem vínculo —</option>}{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
   }
-  const type = field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "month" ? "month" : "text";
-  return <label htmlFor={common.id}>{field.label}<input {...common} type={type} step={type === "number" ? "any" : undefined} defaultValue={String(value ?? "")} disabled={Boolean(row && field.name === "numero")} /></label>;
+  const type = field.type === "number" || field.type === "percent" ? "number" : field.type === "date" ? "date" : field.type === "month" ? "month" : "text";
+  const displayed = field.type === "percent" ? Number(value ?? 0.1) * 100 : value ?? "";
+  return <label htmlFor={common.id}>{field.label}<input {...common} type={type} step={type === "number" ? "any" : undefined} min={field.type === "percent" ? 0 : undefined} max={field.type === "percent" ? 100 : undefined} defaultValue={String(displayed)} disabled={Boolean(row && field.name === "numero")} /></label>;
 }
 
 function RowTable({ module, rows, search, onEdit, onDelete, onAction }: {
@@ -60,7 +64,7 @@ function RowTable({ module, rows, search, onEdit, onDelete, onAction }: {
         <td><div className="row-actions">
           {module.table === "lancamentos" && !row.recebido_em && <button type="button" onClick={() => onAction(row, "receber")}>Receber</button>}
           {module.table === "lancamentos" && Boolean(row.recebido_em) && !row.repassado_em && <><button type="button" onClick={() => onAction(row, "repassar")}>Repassar</button><button type="button" className="danger" onClick={() => onAction(row, "estornar")}>Estornar</button></>}
-          {["iptus", "condominios", "seguros"].includes(module.table) && <button type="button" onClick={() => onAction(row, "pagar-mes")}>Pagar mês</button>}
+          {["iptus", "condominios", "seguros"].includes(module.table) && (Number(row.parcelas) === 0 || Number(row.parcelas_pagas) < Number(row.parcelas)) && <>{String(row.pago_ate ?? "") < month() && <button type="button" onClick={() => onAction(row, "pagar-mes")}>Pagar mês</button>}<button type="button" onClick={() => onAction(row, "pagar-parcela")}>+1 paga</button></>}
           {module.table === "despesas" && row.situacao !== "pago" && <button type="button" onClick={() => onAction(row, "pagar")}>Pagar</button>}
           {module.table === "notas_fiscais" && row.status !== "emitida" && <button type="button" onClick={() => onAction(row, "emitir")}>Marcar emitida</button>}
           {module.table === "pendencias" && !row.repassado_em && <button type="button" onClick={() => onAction(row, "repassar-pendencia")}>Repassar</button>}
@@ -92,6 +96,10 @@ export function LiveSection({ section }: { section: DemoSection }) {
     ? ["contratos", "lancamentos", "despesas", "caixas"]
     : section.path === "controle"
       ? ["contratos", "lancamentos", "despesas", "iptus", "condominios", "seguros", "pendencias", "manutencoes"]
+      : section.path === "lancamentos"
+        ? ["lancamentos", "contratos"]
+        : section.path === "notas"
+          ? ["notas_fiscais", "contratos", "config"]
       : sectionModules[section.path] ?? [];
 
   const load = useCallback(async () => {
@@ -153,21 +161,27 @@ export function LiveSection({ section }: { section: DemoSection }) {
       if (module.table === "lancamentos" && field.name === "recebido_em" && !row?.recebido_em) continue;
       const raw = String(form.get(field.name) ?? "");
       if (field.type === "checkbox") payload[field.name] = form.has(field.name) ? 1 : 0;
-      else if (field.type === "number" || ["contract", "person", "property"].includes(field.type ?? "")) {
-        payload[field.name] = raw === "" ? (["contract", "person", "property"].includes(field.type ?? "") ? null : 0) : Number(raw);
+      else if (field.type === "number" || field.type === "percent" || ["contract", "person", "property"].includes(field.type ?? "")) {
+        payload[field.name] = raw === "" ? (["contract", "person", "property"].includes(field.type ?? "") ? null : 0) : field.type === "percent" ? Number(raw) / 100 : Number(raw);
       } else if ((field.type === "date" || field.type === "month") && !raw) payload[field.name] = module.table === "lancamentos" || module.table === "notas_fiscais" || (module.table === "contratos" && field.name === "data_inicio") ? null : "";
       else payload[field.name] = raw;
     }
     if (module.table === "lancamentos" && row?.recebido_em && !payload.recebido_em) { setNotice("Use Estornar para desfazer um recebimento."); return; }
     if (!row && module.table === "despesas" && !payload.competencia) payload.competencia = competencia;
+    const existingContract = !row && module.table === "contratos"
+      ? (data.contratos ?? []).find((contract) => Number(contract.numero) === Number(payload.numero)) : undefined;
+    if (existingContract?.ativo && Number(existingContract.ativo) === 1) { setNotice("Já existe um contrato ativo com esse número."); return; }
+    if (existingContract && !window.confirm("Esse contrato está encerrado. Deseja reativá-lo com os novos dados?")) return;
     await run(async () => {
       const supabase = createClient();
       const result = row
         ? await supabase.from(module.table).update(payload).eq(module.key, row[module.key] as string | number)
-        : await supabase.from(module.table).insert(payload);
+        : existingContract
+          ? await supabase.from("contratos").update(payload).eq("numero", Number(existingContract.numero))
+          : await supabase.from(module.table).insert(payload);
       if (result.error) throw result.error;
       close();
-    }, row ? "Registro atualizado." : "Registro criado.");
+    }, row ? "Registro atualizado." : existingContract ? "Contrato reativado." : "Registro criado.");
   }
   async function remove(module: Module, row: Row) {
     if (module.table === "lancamentos" && row.recebido_em) { setNotice("Estorne o recebimento antes de remover o lançamento."); return; }
@@ -203,6 +217,11 @@ export function LiveSection({ section }: { section: DemoSection }) {
         if (error) throw error;
         return;
       }
+      if (action === "pagar-parcela") {
+        const { error } = await supabase.rpc("registrar_parcela_avulsa", { p_tabela: module.table, p_id: id });
+        if (error) throw error;
+        return;
+      }
       if (action === "pagar") patch = { situacao: "pago" };
       if (action === "emitir") patch = { status: "emitida", emitida_em: now() };
       const { error } = await supabase.from(module.table).update(patch).eq(module.key, id);
@@ -226,12 +245,18 @@ export function LiveSection({ section }: { section: DemoSection }) {
     }, "Despesas fixas copiadas.");
   }
 
+  const contractsByNumber = new Map((data.contratos ?? []).map((contract) => [Number(contract.numero), contract]));
+  const taxRates = {
+    rent: Number((data.config ?? []).find((item) => item.chave === "aliq_aluguel")?.valor || 0),
+    sale: Number((data.config ?? []).find((item) => item.chave === "aliq_venda")?.valor || 0),
+  };
   const rowsFor = (name: string) => (data[name] ?? []).filter((row) => {
     if (name === "pendencias" && section.path === "iptus") return row.tipo === "iptu" || row.tipo === "condominio";
     if (name === "pendencias" && section.path === "seguros") return row.tipo === "seguro";
-    if (name === "lancamentos" || name === "despesas" || name === "notas_fiscais") {
+    if (name === "lancamentos" || name === "despesas") {
       if (row.competencia !== competencia) return false;
     }
+    if (name === "pendencias" && row.repassado_em) return false;
     if (name === "lancamentos") {
       const day = Number(row.vencimento_dia || 0);
       if (dueFrom && day < Number(dueFrom)) return false;
@@ -244,25 +269,40 @@ export function LiveSection({ section }: { section: DemoSection }) {
     if (name === "notas_fiscais" && status) return row.status === status;
     if (name === "despesas" && status) return row.situacao === status;
     return true;
-  }).sort((a, b) => name === "lancamentos" ? (order === "asc" ? 1 : -1) * (Number(a.vencimento_dia || 0) - Number(b.vencimento_dia || 0) || Number(a.contrato_numero || 0) - Number(b.contrato_numero || 0)) : 0);
+  }).sort((a, b) => name === "lancamentos" ? (order === "asc" ? 1 : -1) * (Number(a.vencimento_dia || 0) - Number(b.vencimento_dia || 0) || Number(a.contrato_numero || 0) - Number(b.contrato_numero || 0)) : 0)
+    .map((row) => deriveRow(name, row, contractsByNumber, taxRates));
   const lancamentos = rowsFor("lancamentos");
   const recebido = lancamentos.filter((row) => row.recebido_em);
-  const cards = section.path === "dashboard" || section.path === "lancamentos"
+  const monthExpenses = (data.despesas ?? []).filter((row) => row.competencia === competencia);
+  const cards = section.path === "dashboard"
     ? [
       ["Contratos ativos", String((data.contratos ?? []).filter((row) => Number(row.ativo) === 1).length)],
-      ["Previsto", currency.format(lancamentos.reduce((sum, row) => sum + gross(row), 0))],
-      ["Recebido", currency.format(recebido.reduce((sum, row) => sum + gross(row), 0))],
-      ["Comissão prevista", currency.format(lancamentos.reduce((sum, row) => sum + amount(row.aluguel) * amount(row.pct_imob), 0))],
+      ["Previsto no mês (bruto)", currency.format(lancamentos.reduce((sum, row) => sum + gross(row), 0))],
+      [`Recebido (${recebido.length}/${lancamentos.length})`, currency.format(recebido.reduce((sum, row) => sum + gross(row), 0))],
+      ["A receber", currency.format(lancamentos.filter((row) => !row.recebido_em).reduce((sum, row) => sum + gross(row), 0))],
+      ["Comissão prevista", currency.format(lancamentos.reduce((sum, row) => sum + commission(row), 0))],
+      ["Comissão recebida", currency.format(recebido.reduce((sum, row) => sum + commission(row), 0))],
+      ["Despesas pendentes", currency.format((data.despesas ?? []).filter((row) => row.competencia === competencia && row.situacao !== "pago").reduce((sum, row) => sum + amount(row.valor), 0))],
+      ["Caixa atual", currency.format(amount((data.caixas ?? []).find((row) => row.nome === "CAIXA ATUAL")?.valor))],
     ]
+    : section.path === "lancamentos"
+      ? [
+        ["Lançamentos", String(lancamentos.length)],
+        ["Previsto", currency.format(lancamentos.reduce((sum, row) => sum + gross(row), 0))],
+        ["Recebido", currency.format(recebido.reduce((sum, row) => sum + gross(row), 0))],
+        ["Comissão prevista", currency.format(lancamentos.reduce((sum, row) => sum + commission(row), 0))],
+      ]
     : section.path === "despesas"
-      ? [["Total", currency.format(rowsFor("despesas").reduce((sum, row) => sum + amount(row.valor), 0))],
-         ["Pendente", currency.format(rowsFor("despesas").filter((row) => row.situacao !== "pago").reduce((sum, row) => sum + amount(row.valor), 0))]]
+      ? [["Total do mês", currency.format(monthExpenses.reduce((sum, row) => sum + amount(row.valor), 0))],
+         ["Fixas e mensais", currency.format(monthExpenses.filter((row) => row.categoria !== "ordinária").reduce((sum, row) => sum + amount(row.valor), 0))],
+         ["Ordinárias", currency.format(monthExpenses.filter((row) => row.categoria === "ordinária").reduce((sum, row) => sum + amount(row.valor), 0))],
+         ["Pendente", currency.format(monthExpenses.filter((row) => row.situacao !== "pago").reduce((sum, row) => sum + amount(row.valor), 0))]]
       : [];
 
   return <>
     <div className="page-intro"><div><p className="eyebrow">Dados da equipe</p><h1>{section.heading}</h1><p className="muted">{section.description}</p></div></div>
     <div className="toolbar">
-      {["dashboard", "lancamentos", "despesas", "notas", "relatorios"].includes(section.path) && <label>Competência <input type="month" value={competencia} onChange={(event) => setCompetencia(event.target.value)} /></label>}
+      {["dashboard", "lancamentos", "despesas"].includes(section.path) && <label>Competência <input type="month" value={competencia} onChange={(event) => setCompetencia(event.target.value)} /></label>}
       {names.length > 0 && <label className="search-control">Buscar<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar registros..." /></label>}
       {section.path === "lancamentos" && <><select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos</option><option value="recebido">Recebidos</option><option value="pendente">Pendentes</option></select><select aria-label="Ordem por vencimento" value={order} onChange={(event) => setOrder(event.target.value as "asc" | "desc")}><option value="asc">Vencimento crescente</option><option value="desc">Vencimento decrescente</option></select>
         <label>Venc. de <input type="number" min="1" max="31" value={dueFrom} onChange={(event) => setDueFrom(event.target.value)} className="day-input" /></label>
@@ -285,7 +325,7 @@ export function LiveSection({ section }: { section: DemoSection }) {
     {section.path === "controle" && <div className="panel-stack">{["lancamentos", "despesas", "iptus", "condominios", "seguros", "pendencias", "manutencoes"].map((name) => <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} />)}</div>}
     {!["dashboard", "controle", "relatorios"].includes(section.path) && <div className="panel-stack">{(sectionModules[section.path] ?? []).map((name) => <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} />)}</div>}
     {section.path === "contratos" && <ContractModels contracts={data.contratos ?? []} />}
-    {section.path === "notas" && <TaxSettings notes={data.notas_fiscais ?? []} />}
+    {section.path === "notas" && <TaxSettings notes={data.notas_fiscais ?? []} onSaved={() => void load()} />}
     <dialog ref={dialog} className="edit-dialog" onClose={() => { setEditor(null); opener.current?.focus(); }} aria-label={editor ? `Editar ${editor.module.title}` : "Formulário"}>
       {editor && <form onSubmit={save}>
         <div className="dialog-heading"><h2>{editor.row ? "Editar" : "Novo"} · {editor.module.title}</h2><button type="button" onClick={close} aria-label="Fechar">×</button></div>

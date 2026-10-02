@@ -9,6 +9,7 @@ codigo/
 __pycache__/
 *.pyc
 supabase/sql-editor/02_dados.sql
+supabase/sql-editor/09_atualizacao_dados.sql
 
 *.db
 *.sqlite

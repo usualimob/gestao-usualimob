@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 
 from export_sqlite_to_supabase import OUTPUT, SOURCE, generate, literal, structure_check
+from update_existing_supabase import PREVIOUS, TARGET, generate_update
 
 
 assert literal("D'Água\\teste\n") == "'D''Água\\teste\n'"
@@ -25,3 +26,16 @@ for name, contents in zip(
     )
 
 print("Scripts correspondem ao SQLite atual; aspas, barras e quebras de linha verificadas.")
+
+previous = sqlite3.connect(f"file:{PREVIOUS.resolve().as_posix()}?mode=ro", uri=True)
+current = sqlite3.connect(f"file:{SOURCE.resolve().as_posix()}?mode=ro", uri=True)
+for connection in (previous, current):
+    connection.row_factory = sqlite3.Row
+try:
+    assert TARGET.read_text(encoding="utf-8") == generate_update(previous, current), (
+        f"{TARGET.name} está desatualizado. Execute: python scripts/update_existing_supabase.py"
+    )
+finally:
+    previous.close()
+    current.close()
+print("Atualização do snapshot anterior corresponde aos bancos locais.")
