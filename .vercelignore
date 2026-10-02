@@ -7,3 +7,6 @@ supabase/sql-editor/02_dados.sql
 *.db
 *.sqlite
 *.csv
+
+.agents/
+skills-lock.json
