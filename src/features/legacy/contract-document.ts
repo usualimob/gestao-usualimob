@@ -16,6 +16,7 @@ export type ContractDocumentData = {
   iptu: number;
   insurance: number;
   insurer: string;
+  fillMode?: "ambos" | "inquilino" | "proprietario";
 };
 
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -89,7 +90,9 @@ function amountWords(value: number) {
 }
 
 export async function fillContractModel(model: Uint8Array, data: ContractDocumentData): Promise<Uint8Array> {
-  if (!data.owner.nome || !data.tenant.nome || !data.property.endereco) throw new Error("Vincule proprietário, inquilino e imóvel antes de gerar.");
+  if (!data.property.endereco || (data.fillMode !== "inquilino" && !data.owner.nome) || (data.fillMode !== "proprietario" && !data.tenant.nome)) {
+    throw new Error("Vincule as partes selecionadas e o imóvel antes de gerar.");
+  }
   if (!Number.isInteger(data.months) || data.months < 1 || data.months > 600) throw new Error("Prazo contratual inválido.");
   if (model.byteLength > 5242880) throw new Error("Modelo Word excede 5 MB.");
   const zip = await JSZip.loadAsync(model);
@@ -103,7 +106,7 @@ export async function fillContractModel(model: Uint8Array, data: ContractDocumen
   const end = finishDate(data.start, data.months);
   const rent = `${currency.format(data.amount)} (${amountWords(data.amount)})`;
   const sections: Record<string, Record<string, string>> = {
-    LOCADOR: { NOME: data.owner.nome, CPF: data.owner.cpf ?? "" },
+    LOCADOR: { NOME: data.owner.nome ?? "", CPF: data.owner.cpf ?? "" },
     IMOVEL: { ENDERECO: data.property.endereco },
     LOCACAO: {
       "PRAZO CONTRATUAL": `${data.months} (${spelled(data.months)}) meses`,
@@ -112,7 +115,7 @@ export async function fillContractModel(model: Uint8Array, data: ContractDocumen
       FINALIDADE: data.purpose,
     },
     LOCATARIO: {
-      NOME: data.tenant.nome, CPF: data.tenant.cpf ?? "", IDENTIDADE: data.tenant.rg ?? "",
+      NOME: data.tenant.nome ?? "", CPF: data.tenant.cpf ?? "", IDENTIDADE: data.tenant.rg ?? "",
       ENDERECO: data.tenant.endereco ?? "", "E-MAIL": data.tenant.email ?? "",
       TELEFONE: data.tenant.telefone ?? "",
     },
@@ -136,6 +139,8 @@ export async function fillContractModel(model: Uint8Array, data: ContractDocumen
     }
     const section = Object.entries(sections).find(([key]) => heading.includes(key))?.[1];
     if (!section) continue;
+    if (heading.includes("LOCADOR") && data.fillMode === "inquilino") continue;
+    if (heading.includes("LOCATARIO") && data.fillMode === "proprietario") continue;
     for (const row of rows.slice(1)) {
       const cells = direct(row, "tc");
       if (cells.length < 2) continue;
@@ -163,7 +168,7 @@ export async function fillContractModel(model: Uint8Array, data: ContractDocumen
     let guarantorIndex = 0;
     for (let index = 1; index < paragraphs.length; index++) {
       const label = normalize(content(paragraphs[index]).trim());
-      if (label.startsWith("LOCATARI") && label.length < 35) {
+      if (label.startsWith("LOCATARI") && label.length < 35 && data.fillMode !== "proprietario") {
         write(paragraphs[index - 1], `${data.tenant.nome} — CPF ${data.tenant.cpf ?? ""}`);
       } else if (label.startsWith("RESPONSAVEL SOLID") && label.length < 45) {
         const person = data.guarantors[guarantorIndex++];
@@ -177,15 +182,17 @@ export async function fillContractModel(model: Uint8Array, data: ContractDocumen
   }
   if (!tables.length) {
     const body = elements(document, "body")[0];
+    const owner = [data.owner.nome, data.owner.cpf && `CPF ${data.owner.cpf}`, data.owner.rg && `RG ${data.owner.rg}`, data.owner.endereco]
+      .filter(Boolean).join(", ");
     let replacements = 0;
     for (const paragraph of direct(body, "p")) {
       const original = content(paragraph);
-      const updated = original
-        .replace(/O\(a\) Sr\(a\)\., qualificação e endereço/i, `${data.owner.nome}, CPF ${data.owner.cpf ?? ""}`)
+      const updated = (data.fillMode === "inquilino" ? original : original
+        .replace(/O\(a\) Sr\(a\)\.\s*(?:,\s*qualificação e endereço)?\s*,(?=\s*denominado)/i, `${owner},`))
         .replace(/Um apartamento situado a (Rua )?X{3,}\.?/i, `O imóvel situado a ${data.property.endereco}.`)
         .replace(/R\$\s*X+\s*\(X+\)/i, rent)
-        .replace(/X{3,}\/X{3,}/, start)
-        .replace(/12\s*\(doze\)\s*meses/i, `${data.months} (${spelled(data.months)}) meses`);
+        .replace(/\d+\s*\([^)]+\)\s*meses\s+a contar a partir de\s+(?:X{3,}\/X{3,}|\d{2}\/\d{2}\/\d{4})/i,
+          `${data.months} (${spelled(data.months)}) meses a contar a partir de ${start}`);
       if (updated !== original) { write(paragraph, updated); replacements++; }
     }
     if (replacements < 2) throw new Error("Modelo de administração sem campos reconhecidos.");

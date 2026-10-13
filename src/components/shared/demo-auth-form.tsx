@@ -29,7 +29,7 @@ export function DemoAuthForm({ mode }: { mode: "login" | "cadastro" }) {
     finally { setBusy(false); }
   }
   return <main className="auth-wrap"><div className="auth-card">
-    <Link href="/dashboard" className="brand"><span className="mark" />gestão<small>imobiliária</small></Link>
+    <Link href="/dashboard" className="brand">USUALIMOB<small>gestão imobiliária</small></Link>
     <p className="eyebrow">{supabaseConfigured ? "Acesso da equipe" : "Demonstração"}</p>
     <h1>{isLogin ? "Entrar" : "Criar conta"}</h1>
     <p className="muted">{supabaseConfigured ? isLogin ? "Entre com sua conta autorizada." : "Após criar a conta, um administrador deverá liberar seu acesso à equipe." : "Configure o projeto Supabase para ativar autenticação e operações reais."}</p>

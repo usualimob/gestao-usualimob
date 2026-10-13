@@ -27,7 +27,7 @@ function dateField(value: unknown): string {
 
 export function generateDimob(
   year: number, config: Record<string, string>, contracts: DimobRow[],
-  people: DimobRow[], entries: DimobRow[],
+  people: DimobRow[], entries: DimobRow[], receivedOnly = true,
 ): string {
   if (!Number.isInteger(year) || year < 2000 || year > 2099) throw new Error("Ano-calendário inválido.");
   const cnpj = numeric(config.dimob_cnpj, 14, true);
@@ -44,16 +44,17 @@ export function generateDimob(
   const grouped = new Map<number, Map<number, [number, number]>>();
   for (const entry of entries) {
     const paid = String(entry.recebido_em ?? "");
-    if (!paid.startsWith(`${year}-`)) continue;
+    const reference = receivedOnly ? paid : String(entry.competencia ?? "");
+    if (!reference.startsWith(`${year}-`)) continue;
     const number = Number(entry.contrato_numero);
-    const month = Number(paid.slice(5, 7));
-    if (!contractsById.has(number) || month < 1 || month > 12) throw new Error("Lançamento recebido sem contrato ou data válida.");
+    const month = Number(reference.slice(5, 7));
+    if (!contractsById.has(number) || month < 1 || month > 12) throw new Error("Lançamento sem contrato ou competência válida.");
     const months = grouped.get(number) ?? new Map<number, [number, number]>();
     const previous = months.get(month) ?? [0, 0];
     months.set(month, [previous[0] + Number(entry.aluguel || 0), previous[1] + Number(entry.aluguel || 0) * Number(entry.pct_imob || 0)]);
     grouped.set(number, months);
   }
-  if (grouped.size === 0) throw new Error("Não há aluguéis recebidos no ano informado.");
+  if (grouped.size === 0) throw new Error(receivedOnly ? "Não há aluguéis recebidos no ano informado." : "Não há aluguéis no ano informado.");
   const lines = ["DIMOB"];
   lines.push("R01" + cnpj + String(year) + "N" + " ".repeat(10) + "N" + " ".repeat(8) + " ".repeat(2)
     + company + responsible + address + uf + city + " ".repeat(20) + " ".repeat(10));

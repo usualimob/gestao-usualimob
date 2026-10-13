@@ -10,14 +10,15 @@
     "check:sql": "node scripts/check_live_sql.mjs",
     "check:dimob": "node --experimental-strip-types scripts/check_dimob.mjs",
     "check:docx": "node --experimental-strip-types scripts/check_contract_document.mjs",
-    "check:legacy": "node --experimental-strip-types scripts/check_legacy_derived.mjs"
+    "check:legacy": "node --experimental-strip-types scripts/check_legacy_derived.mjs",
+    "check:snapshot": "node scripts/check_snapshot_update.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.1",
     "@xmldom/xmldom": "0.9.12",
     "jszip": "3.10.2",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

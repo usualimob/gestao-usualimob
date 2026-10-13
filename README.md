@@ -1,6 +1,6 @@
 # Gestão Imobiliária — Next.js + Supabase
 
-Aplicação Next.js 16.3.6 com App Router. As 11 áreas do sistema local foram adaptadas para navegação web, autenticação da equipe e operações no projeto Supabase **de destino**. Sem variáveis de ambiente, o site abre a demonstração com dados fictícios. Nenhum dado de `banco/` ou modelo de `codigo/` é publicado.
+Aplicação Next.js 16.3.8 com App Router. As 11 áreas do sistema local foram adaptadas para navegação web, autenticação da equipe e operações no projeto Supabase **de destino**. Sem variáveis de ambiente, o site abre a demonstração com dados fictícios. Nenhum dado de `banco/` ou modelo de `codigo/` é publicado.
 
 ## Executar
 
@@ -20,9 +20,10 @@ npm run check:sql
 npm run check:dimob
 npm run check:docx
 npm run check:legacy
+npm run check:snapshot
 ```
 
-O teste Word usa dados fictícios e também verifica os cinco modelos locais quando `codigo/modelos/` existe. Os testes SQL rodam num PostgreSQL em memória; não alteram o projeto remoto.
+O teste Word usa dados fictícios e também verifica os cinco modelos locais quando `codigo/modelos/` existe. `check:snapshot` carrega o SQLite anterior em PostgreSQL local, aplica a atualização privada e confere as 14 contagens atuais. Os testes SQL não alteram o projeto remoto.
 
 ## Preparar o Supabase de destino
 
@@ -43,9 +44,9 @@ O banco permanece protegido por RLS. `anon` não recebe acesso; `authenticated` 
 - Competência, recebimento/estorno, parcela mensal ou avulsa, cópia de despesas e atualização/encerramento de contratos têm funções transacionais no SQL. Receber cria nota e pendências uma vez; o estorno bloqueia nota emitida ou repasse concluído.
 - Dashboard e Controle mostram histórico, reajustes, vencimentos e pendências. Relatórios mensais, despesas e pendências podem ser impressos ou salvos como PDF pelo navegador.
 - A DIMOB gera prévia e TXT usando a **data de recebimento**. Exige dados do declarante, CPF/CNPJ dos envolvidos e data real de início. Importe o TXT no PGD da Receita e confira todos os campos antes do envio.
-- Contratos Word usam modelos privados do Supabase Storage. A geração foi testada com dados sintéticos nos cinco modelos locais, mas o documento final deve ser conferido antes da assinatura.
+- Contratos Word usam modelos privados do Supabase Storage. Uma minuta pode ser preenchida com ou sem contrato cadastrado, escolhendo partes, imóvel, valores e modo de preenchimento. A geração foi testada com dados sintéticos nos cinco modelos locais, mas o documento final deve ser conferido antes da assinatura.
 
-Ainda não houve conexão ou teste ponta a ponta no projeto Supabase de destino, nem importação dos registros reais. A equipe deve validar os resultados fiscais e documentos contra o sistema antigo e o programa oficial. A renumeração de contratos e a exclusão múltipla de lançamentos recebidos ficaram pendentes por alterarem ou removerem histórico; a exclusão individual exige estorno prévio.
+O usuário informou que atualizou o Supabase de destino com o snapshot recente. Esta sessão conferiu os scripts somente em PostgreSQL local; não houve teste ponta a ponta no projeto remoto. A equipe deve validar os resultados fiscais e documentos contra o sistema antigo e o programa oficial. A renumeração de contratos e a exclusão múltipla de lançamentos recebidos ficaram pendentes por alterarem ou removerem histórico; a exclusão individual exige estorno prévio.
 
 ## Publicar na Vercel
 

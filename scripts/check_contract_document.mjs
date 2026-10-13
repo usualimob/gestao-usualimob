@@ -32,7 +32,31 @@ const generatedXml = await generatedZip.file("word/document.xml").async("string"
 assert.ok(generatedXml.includes("Locador Teste"));
 assert.ok(generatedXml.includes("2.000,00"));
 assert.ok(generatedXml.includes("24/03/2029"));
+const tenantOnly = await fillContractModel(await synthetic.generateAsync({ type: "uint8array" }), { ...data, owner: {}, fillMode: "inquilino" });
+const tenantXml = await (await JSZip.loadAsync(tenantOnly)).file("word/document.xml").async("string");
+assert.ok(tenantXml.includes("Locatário Teste"));
+assert.ok(!tenantXml.includes("Locador Teste"));
+const ownerOnly = await fillContractModel(await synthetic.generateAsync({ type: "uint8array" }), { ...data, tenant: {}, fillMode: "proprietario" });
+const ownerXml = await (await JSZip.loadAsync(ownerOnly)).file("word/document.xml").async("string");
+assert.ok(ownerXml.includes("Locador Teste"));
+assert.ok(!ownerXml.includes("Locatário Teste"));
 console.log("DOCX sintético: campos, valor e prazo OK");
+
+const administration = new JSZip();
+administration.file("word/document.xml", `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+  <w:p><w:r><w:t>O(a) Sr(a). , denominado simplesmente PROPRIETÁRIO.</w:t></w:r></w:p>
+  <w:p><w:r><w:t>Um apartamento situado a Rua XXXXXXXXXX.</w:t></w:r></w:p>
+  <w:p><w:r><w:t>R$ XXXXXXXXX (XXXXXX)</w:t></w:r></w:p>
+  <w:p><w:r><w:t>30 (trinta) meses a contar a partir de 13/10/2026</w:t></w:r></w:p>
+</w:body></w:document>`);
+const administrationOutput = await fillContractModel(await administration.generateAsync({ type: "uint8array" }), {
+  ...data, months: 18, start: "2027-01-05", fillMode: "proprietario",
+});
+const administrationXml = await (await JSZip.loadAsync(administrationOutput)).file("word/document.xml").async("string");
+assert.ok(administrationXml.includes("Locador Teste, CPF 111.111.111-11"));
+assert.ok(administrationXml.includes("18 (dezoito) meses a contar a partir de 05/01/2027"));
+assert.ok(!administrationXml.includes("13/10/2026"));
+console.log("DOCX de administração: proprietário, campos XXX e prazo OK");
 
 const base = "codigo/modelos";
 if (existsSync(base)) {
@@ -44,11 +68,16 @@ if (existsSync(base)) {
     assert.ok(xml.includes("Locador Teste"), name);
     assert.ok(xml.includes("Imóvel Teste"), name);
     assert.ok(xml.includes("2.000,00"), name);
-    if (!name.includes("Adm")) {
+    assert.ok(xml.includes("24/09/2026"), name);
+    if (!name.includes("Adm") && !name.includes("sem-nome")) {
       const withGuarantor = await fillContractModel(file, { ...data, guarantors: [{ nome: "Fiador Teste", cpf: "333.333.333-33" }] });
       const secondZip = await JSZip.loadAsync(withGuarantor);
       const secondXml = await secondZip.file("word/document.xml").async("string");
       assert.ok(secondXml.includes("Fiador Teste"), name);
+    } else {
+      const partial = await fillContractModel(file, { ...data, owner: {}, fillMode: "inquilino" });
+      const partialXml = await (await JSZip.loadAsync(partial)).file("word/document.xml").async("string");
+      assert.ok(!partialXml.includes("Locador Teste"), name);
     }
     console.log(`DOCX ${name}: preenchimento OK`);
   }

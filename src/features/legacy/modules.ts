@@ -13,6 +13,12 @@ export type Module = {
   columns: string[];
   create?: boolean;
 };
+export function getOverviewColumns(module: Module): string[] {
+  if (module.columns.length <= 5) return module.columns;
+  if (module.table === "manutencoes") return ["solicitante", "contrato_numero", "situacao", "data_abertura"];
+  const amount = module.table === "contratos" ? "aluguel" : ["total_bruto", "saldo", "valor_parcela", "valor", "aluguel"].find((name) => module.columns.includes(name));
+  return module.columns.filter((name, index) => index < 3 || name === amount || ["situacao", "status", "ativo"].includes(name));
+}
 const field = (name: string, label: string, type: Field["type"] = "text", required = false): Field => ({ name, label, type, required });
 const choice = (name: string, label: string, options: string[]): Field => ({ name, label, type: "select", options });
 const money = (name: string, label: string): Field => field(name, label, "number");

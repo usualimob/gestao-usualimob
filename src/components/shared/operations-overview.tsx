@@ -6,7 +6,7 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const amount = (value: unknown) => Number(value || 0);
 const gross = (row: Row) => ["aluguel", "tx_incendio", "fianca", "condominio", "iptu", "agua_luz"].reduce((sum, key) => sum + amount(row[key]), 0);
 
-export function DashboardPanels({ data, competencia }: { data: Data; competencia: string }) {
+export function DashboardPanels({ data, competencia, search = "" }: { data: Data; competencia: string; search?: string }) {
   const history = new Map<string, { expected: number; received: number; fee: number }>();
   for (const row of data.lancamentos ?? []) {
     const key = String(row.competencia);
@@ -19,17 +19,23 @@ export function DashboardPanels({ data, competencia }: { data: Data; competencia
   const months = [...history].sort(([a], [b]) => a.localeCompare(b)).slice(-12);
   const max = Math.max(1, ...months.map(([, item]) => item.expected));
   const contracts = new Map((data.contratos ?? []).map((row) => [Number(row.numero), row]));
-  const owners = new Map<string, number>();
+  const owners = new Map<string, { value: number; count: number }>();
   for (const row of (data.lancamentos ?? []).filter((item) => item.competencia === competencia)) {
     const name = String(contracts.get(Number(row.contrato_numero))?.proprietario ?? "Sem proprietário");
-    owners.set(name, (owners.get(name) ?? 0) + gross(row));
+    const previous = owners.get(name) ?? { value: 0, count: 0 };
+    owners.set(name, { value: previous.value + gross(row), count: previous.count + 1 });
   }
-  const top = [...owners].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const top = [...owners].sort((a, b) => b[1].value - a[1].value).slice(0, 8);
+  const topMax = Math.max(1, ...top.map(([, item]) => item.value));
+  const feeMax = Math.max(1, ...months.map(([, item]) => item.fee));
   const monthNumber = Number(competencia.slice(5));
+  const query = search.trim().toLocaleLowerCase("pt-BR");
   const adjusted = (data.contratos ?? []).filter((row) => {
     const month = String(row.mes_reajuste ?? "").toLocaleLowerCase("pt-BR");
     const names = ["", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-    return month === String(monthNumber) || month === String(monthNumber).padStart(2, "0") || month === names[monthNumber];
+    const matchesMonth = month === String(monthNumber) || month === String(monthNumber).padStart(2, "0") || month === names[monthNumber];
+    const matchesSearch = !query || [row.numero, row.inquilino, row.proprietario, row.endereco].some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(query));
+    return matchesMonth && matchesSearch;
   });
   return <div className="panel-grid overview-panels">
     <section className="panel"><h2>Evolução mensal · previsto × recebido</h2>
@@ -41,14 +47,32 @@ export function DashboardPanels({ data, competencia }: { data: Data; competencia
       </div>) : <p className="muted">Sem histórico.</p>}
     </section>
     <section className="panel"><h2>Comissão da imobiliária por mês</h2>
-      <div className="table-scroll"><table><thead><tr><th>Mês</th><th>Comissão prevista</th></tr></thead><tbody>
-        {months.map(([key, item]) => <tr key={key}><td>{key}</td><td>{money.format(item.fee)}</td></tr>)}
+      {months.length ? months.map(([key, item]) => <div className="bar-row" key={key}><span>{key}</span>
+        <div className="bar-track" aria-hidden="true"><div className="bar-expected fee-bar" style={{ width: `${100 * item.fee / feeMax}%` }} /></div>
+        <strong>{money.format(item.fee)}</strong>
+      </div>) : <p className="muted">Sem histórico.</p>}
+    </section>
+    <section className="panel"><h2>Histórico mensal</h2>
+      <div className="table-scroll"><table><thead><tr><th scope="col">Mês</th><th scope="col" className="numeric">Bruto</th><th scope="col" className="numeric">Recebido</th><th scope="col" className="numeric">Comissão</th></tr></thead><tbody>
+        {[...history].reverse().map(([key, item]) => <tr key={key}><td>{key}</td><td className="numeric">{money.format(item.expected)}</td><td className="numeric">{money.format(item.received)}</td><td className="numeric">{money.format(item.fee)}</td></tr>)}
       </tbody></table></div>
     </section>
+    <section className="panel"><h2>Situação da competência</h2>
+      {(() => {
+        const monthRows = (data.lancamentos ?? []).filter((row) => row.competencia === competencia);
+        const expected = monthRows.reduce((sum, row) => sum + gross(row), 0);
+        const received = monthRows.filter((row) => row.recebido_em).reduce((sum, row) => sum + gross(row), 0);
+        return <><div className="progress-track" role="progressbar" aria-label="Valor recebido" aria-valuemin={0} aria-valuemax={Math.max(expected, received, 1)} aria-valuenow={received} aria-valuetext={`${money.format(received)} de ${money.format(expected)} recebidos`}>
+          <div style={{ width: `${expected ? Math.min(100, received / expected * 100) : 0}%` }} />
+        </div><div className="progress-legend"><span>Recebido <strong>{money.format(received)}</strong></span><span>A receber <strong>{money.format(expected - received)}</strong></span></div></>;
+      })()}
+    </section>
     <section className="panel"><h2>Maiores proprietários do mês</h2>
-      <div className="table-scroll"><table><thead><tr><th>Proprietário</th><th>Bruto previsto</th></tr></thead><tbody>
-        {top.map(([name, value]) => <tr key={name}><td>{name}</td><td>{money.format(value)}</td></tr>)}
-      </tbody></table></div>
+      {top.length ? top.map(([name, item]) => <div className="owner-row" key={name}>
+        <span title={name}>{name} <small>({item.count})</small></span>
+        <div className="bar-track" aria-hidden="true"><div className="bar-expected fee-bar" style={{ width: `${100 * item.value / topMax}%` }} /></div>
+        <strong>{money.format(item.value)}</strong>
+      </div>) : <p className="muted">Nenhum proprietário nesta competência.</p>}
     </section>
     <section className="panel"><h2>Reajustes deste mês</h2>
       <div className="table-scroll"><table><thead><tr><th>Contrato</th><th>Inquilino</th><th>Proprietário</th></tr></thead><tbody>
@@ -107,10 +131,11 @@ export function ControlPanels({ data }: { data: Data }) {
     { key: "hoje", title: "Hoje" }, { key: "proximos", title: "Próximos 5 dias" }, { key: "atrasados", title: "Atrasados" },
   ];
   return <div className="panel-stack">{groups.map((group) => <section className="panel" key={group}><h2>{group}</h2>
-    <div className="control-columns">{statuses.map(({ key, title }) => <div key={key}>
+    <div className="control-columns">{statuses.map(({ key, title }) => <div className={`control-column is-${key}`} key={key}>
       <h3>{title}</h3><ul>{items.filter((item) => item.group === group && item.status === key).map((item, index) =>
         <li key={index}><span>{item.title}</span><small>{item.due} · {money.format(item.value)}</small></li>)}</ul>
       {!items.some((item) => item.group === group && item.status === key) && <p className="muted">Sem itens.</p>}
+      <p className="control-total">Total ({items.filter((item) => item.group === group && item.status === key).length}): <strong>{money.format(items.filter((item) => item.group === group && item.status === key).reduce((sum, item) => sum + item.value, 0))}</strong></p>
     </div>)}</div>
   </section>)}</div>;
 }

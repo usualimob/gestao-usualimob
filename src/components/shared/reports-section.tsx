@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { generateDimob } from "@/features/legacy/dimob";
 import { commission, gross } from "@/features/legacy/derived";
@@ -17,11 +17,19 @@ const monthNow = () => { const date = new Date(); return `${date.getFullYear()}-
 export function ReportsSection() {
   const [competencia, setCompetencia] = useState(monthNow);
   const [year, setYear] = useState(new Date().getFullYear() - 1);
+  const [receivedOnly, setReceivedOnly] = useState(true);
   const [kind, setKind] = useState<"mensal" | "despesas" | "pendencias" | "dimob">("mensal");
   const [data, setData] = useState<Record<string, Row[]>>({});
   const [config, setConfig] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const printRequested = useRef(false);
+
+  useEffect(() => {
+    if (!printRequested.current) return;
+    printRequested.current = false;
+    requestAnimationFrame(() => window.print());
+  }, [kind]);
 
   useEffect(() => {
     let active = true;
@@ -64,7 +72,7 @@ export function ReportsSection() {
 
   function downloadDimob() {
     try {
-      const content = generateDimob(year, config, data.contratos ?? [], data.pessoas ?? [], data.lancamentos ?? []);
+      const content = generateDimob(year, config, data.contratos ?? [], data.pessoas ?? [], data.lancamentos ?? [], receivedOnly);
       const file = new Blob([content], { type: "text/plain;charset=us-ascii" });
       const url = URL.createObjectURL(file);
       const link = document.createElement("a");
@@ -75,6 +83,14 @@ export function ReportsSection() {
       setNotice("Arquivo gerado. Importe no PGD DIMOB e confira todos os campos antes do envio.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Não foi possível gerar a DIMOB.");
+    }
+  }
+
+  function printReport(report: typeof kind) {
+    if (report === kind) window.print();
+    else {
+      printRequested.current = true;
+      setKind(report);
     }
   }
 
@@ -94,13 +110,16 @@ export function ReportsSection() {
       : kind === "pendencias"
         ? (data.pendencias ?? []).filter((row) => !row.repassado_em).map((row) =>
             [row.competencia, row.tipo, row.descricao, row.contrato_numero, money.format(Number(row.valor || 0)), row.criada_em])
-        : (data.lancamentos ?? []).filter((row) => String(row.recebido_em ?? "").startsWith(String(year))).map((row) => {
+        : (data.lancamentos ?? []).filter((row) => {
+            const reference = receivedOnly ? row.recebido_em : row.competencia;
+            return String(reference ?? "").startsWith(String(year));
+          }).map((row) => {
             const contract = contracts.get(Number(row.contrato_numero));
             const owner = people.get(Number(contract?.proprietario_id));
             const tenant = people.get(Number(contract?.inquilino_id));
             return [row.contrato_numero, owner?.nome || contract?.proprietario, owner?.cpf || "CPF ausente",
               tenant?.nome || contract?.inquilino, tenant?.cpf || "CPF ausente",
-              row.recebido_em, money.format(Number(row.aluguel || 0)),
+              row.recebido_em || "Não recebido", money.format(Number(row.aluguel || 0)),
               money.format(Number(row.aluguel || 0) * Number(row.pct_imob || 0))];
           });
   const columns = kind === "mensal"
@@ -119,22 +138,29 @@ export function ReportsSection() {
   const reportTotal = kind === "mensal" ? money.format(monthly.reduce((sum, row) => sum + gross(row), 0))
     : kind === "despesas" ? money.format(expenses.reduce((sum, row) => sum + Number(row.valor || 0), 0))
       : kind === "pendencias" ? money.format((data.pendencias ?? []).filter((row) => !row.repassado_em).reduce((sum, row) => sum + Number(row.valor || 0), 0))
-        : money.format((data.lancamentos ?? []).filter((row) => String(row.recebido_em ?? "").startsWith(String(year))).reduce((sum, row) => sum + Number(row.aluguel || 0), 0));
+        : money.format((data.lancamentos ?? []).filter((row) => String((receivedOnly ? row.recebido_em : row.competencia) ?? "").startsWith(String(year))).reduce((sum, row) => sum + Number(row.aluguel || 0), 0));
 
   return <div className="reports-page">
     <div className="page-intro"><div><p className="eyebrow">Dados da equipe</p><h1>Relatórios</h1><p className="muted">Confira os registros antes de imprimir ou salvar em PDF pelo navegador.</p></div></div>
+    <div className="report-shortcuts no-print" aria-label="Gerar relatórios">
+      <button type="button" className="primary" onClick={() => printReport("mensal")} disabled={loading}>Controle do mês (PDF)</button>
+      <button type="button" className="primary" onClick={() => printReport("despesas")} disabled={loading}>Despesas do mês (PDF)</button>
+      <button type="button" className="primary" onClick={() => printReport("pendencias")} disabled={loading}>Pendências em aberto (PDF)</button>
+      <button type="button" className="primary" onClick={() => printReport("dimob")} disabled={loading}>Conferência DIMOB (PDF)</button>
+    </div>
     <div className="toolbar no-print">
       <label>Relatório <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
         <option value="mensal">Controle mensal</option><option value="despesas">Despesas</option>
         <option value="pendencias">Pendências</option><option value="dimob">Conferência DIMOB</option>
       </select></label>
       {(kind === "mensal" || kind === "despesas") && <label>Competência <input type="month" value={competencia} onChange={(event) => setCompetencia(event.target.value)} /></label>}
-      {kind === "dimob" && <label>Ano calendário <input type="number" min="2000" max="2099" value={year} onChange={(event) => setYear(Number(event.target.value))} /></label>}
+      {kind === "dimob" && <><label>Ano calendário <input type="number" min="2000" max="2099" value={year} onChange={(event) => setYear(Number(event.target.value))} /></label>
+        <label className="check-control"><input type="checkbox" checked={receivedOnly} onChange={(event) => setReceivedOnly(event.target.checked)} />Somente aluguéis recebidos</label></>}
       <button type="button" className="primary" onClick={() => window.print()} disabled={loading}>Imprimir / salvar PDF</button>
       {kind === "dimob" && <button type="button" onClick={downloadDimob} disabled={loading}>Gerar TXT para validar no PGD</button>}
     </div>
     <p className="action-notice no-print" role="status" aria-live="polite">{loading ? "Carregando..." : notice}</p>
-    {kind === "dimob" && <p className="demo-banner no-print">Conferência baseada na data do recebimento. Verifique CPFs, valores e regras fiscais antes da declaração. O TXT gerado precisa ser importado e validado no PGD oficial antes do envio.</p>}
+    {kind === "dimob" && <p className="demo-banner no-print">Conferência baseada {receivedOnly ? "na data do recebimento" : "na competência, incluindo aluguéis ainda não recebidos"}. Verifique CPFs, valores e regras fiscais antes da declaração. O TXT gerado precisa ser importado e validado no PGD oficial antes do envio.</p>}
     <section className="panel report-print"><h2>{title}</h2>
       <div className="table-scroll"><table><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
         <tbody>{filtered.length ? filtered.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{String(value ?? "—")}</td>)}</tr>)

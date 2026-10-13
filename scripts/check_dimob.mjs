@@ -9,9 +9,9 @@ const config = {
 const contracts = [{ numero: 12, proprietario_id: 1, inquilino_id: 2, data_inicio: "2024-02-29", endereco: "Rua Modelo" }];
 const people = [{ id: 1, cpf: "12345678901", nome: "Locador Exemplo" }, { id: 2, cpf: "98765432100", nome: "Locatario Exemplo" }];
 const entries = [
-  { contrato_numero: 12, recebido_em: "2025-01-15", aluguel: 1000, pct_imob: 0.1 },
-  { contrato_numero: 12, recebido_em: "2025-02-15", aluguel: 2000, pct_imob: 0.1 },
-  { contrato_numero: 12, recebido_em: null, aluguel: 9999, pct_imob: 0.1 },
+  { contrato_numero: 12, competencia: "2025-01", recebido_em: "2025-01-15", aluguel: 1000, pct_imob: 0.1 },
+  { contrato_numero: 12, competencia: "2025-02", recebido_em: "2025-02-15", aluguel: 2000, pct_imob: 0.1 },
+  { contrato_numero: 12, competencia: "2025-03", recebido_em: null, aluguel: 9999, pct_imob: 0.1 },
 ];
 const text = generateDimob(2025, config, contracts, people, entries);
 const lines = text.split("\r\n");
@@ -24,6 +24,7 @@ assert.ok(lines[2].includes("29022024"));
 assert.ok(lines[2].includes("00000000100000"));
 assert.ok(lines[2].includes("00000000200000"));
 assert.ok(!lines[2].includes("9999"));
+assert.ok(generateDimob(2025, config, contracts, people, entries, false).includes("00000000999900"));
 assert.throws(() => generateDimob(2025, config, [{ ...contracts[0], data_inicio: null }], people, entries), /data de início/);
 assert.throws(() => generateDimob(2025, config, contracts, [{ ...people[0], cpf: "" }, people[1]], entries), /CPF\/CNPJ/);
 console.log("DIMOB sintética: agrupamento por pagamento, campos fixos e bloqueios OK");

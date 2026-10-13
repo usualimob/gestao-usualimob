@@ -2,14 +2,14 @@
 
 ## Código: estado atual do `src`
 
-As 11 áreas foram migradas para Next.js 16.3.6. Com credenciais do projeto de destino, o front usa Supabase Auth, RLS e as 14 tabelas. Sem credenciais, mantém a demonstração sintética. Os formulários e tabelas operacionais foram reconstruídos em React; o JavaScript legado permanece apenas como referência local.
+As 11 áreas foram migradas para Next.js 16.3.8. Com credenciais do projeto de destino, o front usa Supabase Auth, RLS e as 14 tabelas. Sem credenciais, mantém a demonstração sintética. Os formulários e tabelas operacionais foram reconstruídos em React; o JavaScript legado permanece apenas como referência local.
 
 | Área | Adaptação implementada | Verificação pendente |
 |---|---|---|
-| Dashboard | Oito indicadores legados, histórico mensal, comissão, proprietários e reajustes | Comparar totais com banco de destino |
-| Controle | Agenda de vencimentos por grupo e listas operacionais | Conferir vencimentos em datas limite com dados reais |
-| Lançamentos | Competência, filtros, colunas de valores calculados, receber, repassar, estornar, editar e excluir pendentes | Teste integrado com registros importados |
-| Contratos | CRUD, vínculo de pessoas/imóveis, encerramento, propagação futura, Word por modelo privado | Revisão jurídica/visual dos DOCX finais |
+| Dashboard | Oito indicadores legados, histórico mensal, barras, situação da competência, comissão, proprietários e reajustes | Comparar totais com banco de destino |
+| Controle | Agenda de vencimentos por grupo, totais e listas operacionais | Conferir vencimentos em datas limite com dados reais |
+| Lançamentos | Competência, filtros, colunas e totais calculados, receber, repassar, estornar, editar e excluir pendentes | Teste integrado com registros importados |
+| Contratos | CRUD, vínculo de pessoas/imóveis, encerramento, propagação futura, Word por modelo privado com minuta avulsa e campos editáveis | Revisão jurídica/visual dos DOCX finais |
 | Cadastros | Pessoas, imóveis e clientes com campos legados | Conferir dados importados |
 | IPTUs e condomínios | CRUD, saldo, parcelas, pagamento mensal ou avulso atômico e pendências | Conferir parcelamentos reais |
 | Seguros | CRUD, pagamento mensal ou avulso e pendências | Conferir saldos reais |
@@ -20,7 +20,7 @@ As 11 áreas foram migradas para Next.js 16.3.6. Com credenciais do projeto de d
 
 Diferenças conscientes da versão web: backup diário e janela PyWebView são locais e não entram no Next.js; modelos Word ficam em bucket privado; PDF é gerado pela impressão do navegador; número de contrato existente não é editável no formulário para evitar quebra de vínculos. A renumeração de contratos e a exclusão múltipla de lançamentos recebidos foram bloqueadas pela revisão automática por risco de perda de histórico. A exclusão individual de um lançamento recebido exige estorno.
 
-Ainda não foi feita validação ponta a ponta no Supabase de destino, pois o projeto não tinha tabelas nem dados. O Python recuperado tem trechos incompletos; as regras centrais foram reconstruídas e testadas com dados sintéticos no PostgreSQL local.
+O usuário informou que atualizou o Supabase de destino; ainda não foi feita validação ponta a ponta nesse projeto nesta sessão. O Python recuperado tem trechos incompletos; as regras centrais foram reconstruídas e testadas no PostgreSQL local.
 
 ## Banco: conferência antes dos dados
 
@@ -29,7 +29,7 @@ Ainda não foi feita validação ponta a ponta no Supabase de destino, pois o pr
 - O esquema preserva 14 chaves primárias, três restrições únicas compostas e a chave estrangeira declarada em `lancamentos`. Vínculos sem FK no SQLite continuam sem FK nesta conversão; acrescentá-las seria uma mudança de modelo.
 - As 14 tabelas têm RLS habilitado e privilégios públicos revogados. O script `04_acesso_equipe.sql` cria políticas de acesso apenas para usuários autorizados em `equipe_usuarios`.
 - `supabase/sql-editor/verificacao_estrutura.sql` compara as 14 tabelas, assinatura de colunas/tipos/nulidade/identidade, número de defaults, chaves, RLS e acesso público. Deve retornar `OK` em todas as linhas **antes** da carga.
-- A carga `02_dados.sql` e a conferência `03_verificacao.sql` permanecem separadas. No teste local em Postgres, 536 registros, 8.860 valores de campos, 101 defaults e 11 sequências coincidiram com o SQLite, sem divergências. Esses arquivos devem ser regenerados se a fonte for atualizada; a carga ainda não foi feita no Supabase remoto.
+- O SQLite recente contém 700 registros nas 14 tabelas, contra 536 no snapshot anterior. A integridade e as chaves estrangeiras passaram; não houve mudança de colunas. `02_dados.sql` e `09_atualizacao_dados.sql` já foram gerados com o hash do arquivo recente e validados localmente. `npm run check:snapshot` aplicou a atualização no PostgreSQL local e confirmou as 14 contagens finais, sem tocar no Supabase remoto.
 
 ## Ordem segura no projeto Supabase de destino
 
