@@ -11,6 +11,7 @@
     "check:dimob": "node --experimental-strip-types scripts/check_dimob.mjs",
     "check:docx": "node --experimental-strip-types scripts/check_contract_document.mjs",
     "check:legacy": "node --experimental-strip-types scripts/check_legacy_derived.mjs",
+    "check:integrations": "node --experimental-strip-types scripts/check_mock_integrations.mjs",
     "check:snapshot": "node scripts/check_snapshot_update.mjs"
   },
   "dependencies": {

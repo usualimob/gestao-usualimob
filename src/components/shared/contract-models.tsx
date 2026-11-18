@@ -7,7 +7,7 @@ type Row = Record<string, unknown>;
 const bucket = "modelos-contrato";
 const today = () => { const date = new Date(); return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); };
 
-export function ContractModels() {
+export function ContractModels({ editable }: { editable: boolean }) {
   const [models, setModels] = useState<string[]>([]);
   const [people, setPeople] = useState<Row[]>([]);
   const [properties, setProperties] = useState<Row[]>([]);
@@ -128,13 +128,13 @@ export function ContractModels() {
       <label>Seguro fiança — R$/mês <input type="number" min="0" step="0.01" value={details.insurance} onChange={(event) => change("insurance", event.target.value)} /></label>
       <div className="dialog-actions contract-span-all"><button type="button" onClick={() => dialog.current?.close()}>Cancelar</button><button className="primary" type="submit" disabled={busy || !models.length}>Gerar Word</button></div>
       </form>
-      <details className="model-management">
+      {editable && <details className="model-management">
         <summary>Gerenciar modelos DOCX</summary>
         <form className="toolbar" onSubmit={upload}>
           <label>Enviar novo modelo <input name="modelo" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required /></label>
           <button type="submit" disabled={busy}>Enviar modelo</button>
         </form>
-      </details>
+      </details>}
     </dialog>
   </section>;
 }

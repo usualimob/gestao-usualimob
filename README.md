@@ -20,6 +20,7 @@ npm run check:sql
 npm run check:dimob
 npm run check:docx
 npm run check:legacy
+npm run check:integrations
 npm run check:snapshot
 ```
 
@@ -38,6 +39,8 @@ Se o projeto de destino **já recebeu `01_schema.sql` e o `02_dados.sql` anterio
 
 O banco permanece protegido por RLS. `anon` não recebe acesso; `authenticated` só acessa as 14 tabelas quando consta em `equipe_usuarios`. Os modelos Word originais têm identificadores e contatos embutidos e continuam apenas em `codigo/`, fora do Git. Revise-os antes de enviá-los ao bucket privado.
 
+Emissão oficial de NFS-e e avisos pela API do WhatsApp ainda não estão ativos. A área de Notas Fiscais possui um simulador local de emissão e aviso, sem persistência nem chamadas externas. O levantamento, os pré-requisitos e a ordem de implementação estão em [docs/integracoes-nfse-whatsapp.md](docs/integracoes-nfse-whatsapp.md).
+
 ## O que funciona e o que conferir
 
 - Cadastros, contratos, IPTU, condomínio, seguros, manutenções, notas, despesas, caixas e pendências usam tabelas reais quando há Supabase configurado.
@@ -50,7 +53,7 @@ O usuário informou que atualizou o Supabase de destino com o snapshot recente. 
 
 ## Publicar na Vercel
 
-Importe este repositório com a raiz como diretório de trabalho e Next.js como framework. Configure as duas variáveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` do projeto de destino, depois execute o build. `.gitignore` e `.vercelignore` excluem `banco/`, `codigo/`, `.env.local`, `02_dados.sql` e `09_atualizacao_dados.sql`. Não carregue dumps, CSVs, DOCX privados ou chaves secretas no repositório.
+Importe este repositório com a raiz como diretório de trabalho e Next.js como framework. Configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY` (somente no servidor) do projeto de destino, depois execute o build. Execute `supabase/sql-editor/10_permissoes_equipe.sql` após os scripts 04 e 06; a primeira conta já autorizada vira administradora. Configure `/redefinir-senha` como URL de redirecionamento permitida no Supabase Auth e revise o template de convite. A aba Equipe permite convidar funcionários e conceder edição por módulo; integrantes ativos podem consultar todos os dados. `.gitignore` e `.vercelignore` excluem `banco/`, `codigo/`, `.env.local`, `02_dados.sql` e `09_atualizacao_dados.sql`. Não carregue dumps, CSVs, DOCX privados ou chaves secretas no repositório.
 
 ## Referência extraída do aplicativo anterior
 

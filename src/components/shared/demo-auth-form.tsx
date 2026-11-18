@@ -40,7 +40,9 @@ export function DemoAuthForm({ mode }: { mode: "login" | "cadastro" }) {
       <button className="primary" type="submit" disabled={busy}>{busy ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}</button>
     </form>
     <p className="action-notice" role="status" aria-live="polite">{notice}</p>
-    <p className="auth-switch">{isLogin ? "Ainda não tem conta?" : "Já tem conta?"} <Link href={isLogin ? "/cadastro" : "/login"}>{isLogin ? "Ver cadastro" : "Ver login"}</Link></p>
+    {isLogin && supabaseConfigured ? <p className="auth-switch">Peça um convite ao administrador para acessar a equipe.</p> :
+      <p className="auth-switch">{isLogin ? "Ainda não tem conta?" : "Já tem conta?"} <Link href={isLogin ? "/cadastro" : "/login"}>{isLogin ? "Ver cadastro" : "Ver login"}</Link></p>}
+    {isLogin && <p className="auth-switch"><Link href="/esqueci-senha">Esqueci minha senha</Link></p>}
     {!supabaseConfigured && <Link href="/dashboard" className="back-link">Acessar demonstração</Link>}
   </div></main>;
 }

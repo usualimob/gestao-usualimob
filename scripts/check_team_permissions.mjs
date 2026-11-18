@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { PGlite } from "@electric-sql/pglite";
+
+const db = new PGlite();
+const sql = (name) => readFileSync(new URL(`../supabase/sql-editor/${name}`, import.meta.url), "utf8");
+const admin = "11111111-1111-4111-8111-111111111111";
+const employee = "22222222-2222-4222-8222-222222222222";
+await db.exec(`
+CREATE ROLE anon; CREATE ROLE authenticated;
+CREATE SCHEMA auth;
+CREATE TABLE auth.users (id UUID PRIMARY KEY, email TEXT, raw_user_meta_data JSONB);
+CREATE FUNCTION auth.uid() RETURNS UUID LANGUAGE sql STABLE
+AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+GRANT USAGE ON SCHEMA auth TO authenticated;
+GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
+CREATE SCHEMA storage;
+CREATE TABLE storage.buckets (id TEXT PRIMARY KEY, name TEXT, public BOOLEAN, file_size_limit BIGINT, allowed_mime_types TEXT[]);
+CREATE TABLE storage.objects (bucket_id TEXT);
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+GRANT USAGE ON SCHEMA storage TO authenticated;
+GRANT SELECT, INSERT, DELETE ON storage.objects TO authenticated;
+`);
+await db.exec(sql("01_schema.sql"));
+await db.exec(sql("04_acesso_equipe.sql"));
+await db.exec(sql("06_modelos_privados.sql"));
+await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'admin@example.com'),($2,'employee@example.com')", [admin, employee]);
+await db.query("INSERT INTO public.equipe_usuarios (user_id) VALUES ($1)", [admin]);
+await db.exec(sql("10_permissoes_equipe.sql"));
+await db.query("INSERT INTO public.equipe_usuarios (user_id,nome,email,pode_editar) VALUES ($1,'Employee','employee@example.com',ARRAY['despesas'])", [employee]);
+await db.exec("INSERT INTO public.contratos (numero,proprietario,inquilino) VALUES (1,'A','B')");
+await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub = '${employee}';`);
+assert.equal((await db.query("SELECT user_id FROM public.equipe_usuarios")).rows.length, 1, "funcionário vê apenas sua autorização");
+assert.equal((await db.query("SELECT numero FROM public.contratos")).rows.length, 1);
+assert.equal((await db.query("UPDATE public.contratos SET proprietario = 'C' WHERE numero = 1 RETURNING numero")).rows.length, 0);
+await assert.rejects(db.query("INSERT INTO public.contratos (numero) VALUES (2)"), /row-level security|permission denied/i);
+await db.query("INSERT INTO public.despesas (tipo,valor) VALUES ('Allowed',1)");
+await db.exec("RESET ROLE");
+await db.query("UPDATE public.equipe_usuarios SET ativo = false WHERE user_id = $1", [employee]);
+await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub = '${employee}';`);
+assert.equal((await db.query("SELECT numero FROM public.contratos")).rows.length, 0);
+await assert.rejects(db.query("INSERT INTO public.despesas (tipo,valor) VALUES ('Blocked',1)"), /row-level security|permission denied/i);
+console.log("Equipe: leitura, edição permitida/negada e desativação OK");
+await db.close();

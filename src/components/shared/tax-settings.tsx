@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function TaxSettings({ notes, onSaved }: { notes: Record<string, unknown>[]; onSaved?: () => void }) {
+export function TaxSettings({ notes, onSaved, editable }: { notes: Record<string, unknown>[]; onSaved?: () => void; editable: boolean }) {
   const [rent, setRent] = useState(0);
   const [sale, setSale] = useState(0);
   const [notice, setNotice] = useState("");
@@ -30,11 +30,11 @@ export function TaxSettings({ notes, onSaved }: { notes: Record<string, unknown>
   }
   return <section className="panel"><h2>Alíquotas e previsão de impostos</h2>
     <p>Previsão das notas emitidas: <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(estimate)}</strong></p>
-    <form className="toolbar" onSubmit={save}>
+    {editable && <form className="toolbar" onSubmit={save}>
       <label>Aluguel/administração (%) <input type="number" min="0" max="100" step="any" value={rent} onChange={(event) => setRent(Number(event.target.value))} /></label>
       <label>Venda/intermediação (%) <input type="number" min="0" max="100" step="any" value={sale} onChange={(event) => setSale(Number(event.target.value))} /></label>
       <button type="submit" className="primary">Salvar alíquotas</button>
-    </form>
+    </form>}
     <p className="action-notice" role="status" aria-live="polite">{notice}</p>
   </section>;
 }

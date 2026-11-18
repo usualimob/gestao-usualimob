@@ -14,7 +14,7 @@ const labels: Record<string, string> = {
 };
 const monthNow = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; };
 
-export function ReportsSection() {
+export function ReportsSection({ editable }: { editable: boolean }) {
   const [competencia, setCompetencia] = useState(monthNow);
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [receivedOnly, setReceivedOnly] = useState(true);
@@ -168,9 +168,10 @@ export function ReportsSection() {
       <p className="muted">Total de registros: {filtered.length} · Valor total: {reportTotal}</p>
     </section>
     {kind === "dimob" && !loading && <section className="panel no-print"><h2>Dados do declarante</h2>
-      <form className="form-grid" onSubmit={saveConfig}>{fields.map((field) => <label key={field} htmlFor={field}>{labels[field]}
+      {editable ? <form className="form-grid" onSubmit={saveConfig}>{fields.map((field) => <label key={field} htmlFor={field}>{labels[field]}
         <input id={field} name={field} defaultValue={config[`dimob_${field}`] ?? ""} />
       </label>)}<button className="primary" type="submit">Salvar declarante</button></form>
+        : <dl>{fields.map((field) => <div key={field}><dt>{labels[field]}</dt><dd>{config[`dimob_${field}`] || "—"}</dd></div>)}</dl>}
     </section>}
   </div>;
 }

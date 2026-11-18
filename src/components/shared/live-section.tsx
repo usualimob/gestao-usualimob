@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TaxSettings } from "@/components/shared/tax-settings";
 import { DashboardPanels, ControlPanels } from "@/components/shared/operations-overview";
 import { ContractModels } from "@/components/shared/contract-models";
+import { MockFiscalFlow } from "@/components/shared/mock-fiscal-flow";
 import { commission, deriveRow, gross } from "@/features/legacy/derived";
 
 type Row = Record<string, unknown>;
@@ -51,8 +52,8 @@ function FieldInput({ field, row, lookup }: { field: Field; row?: Row; lookup: R
   return <label htmlFor={common.id}>{field.label}<input {...common} type={type} step={type === "number" ? "any" : undefined} min={field.type === "percent" ? 0 : undefined} max={field.type === "percent" ? 100 : undefined} defaultValue={String(displayed)} disabled={Boolean(row && field.name === "numero")} /></label>;
 }
 
-function RowActions({ module, row, onEdit, onDelete, onAction }: {
-  module: Module; row: Row; onEdit: (row: Row) => void;
+function RowActions({ module, row, onEdit, onDelete, onAction, editable }: {
+  module: Module; row: Row; editable: boolean; onEdit: (row: Row) => void;
   onDelete: (row: Row) => void; onAction: (row: Row, action: string) => void;
 }) {
   const target = `${labelFor(module, module.columns[0])} ${valueFor(module, module.columns[0], row[module.columns[0]])}`;
@@ -61,20 +62,21 @@ function RowActions({ module, row, onEdit, onDelete, onAction }: {
     <button type="button" className={danger ? "danger" : undefined} aria-label={action(label)} title={label} onClick={onClick}>
       <span className="material-symbols-outlined" aria-hidden="true">{icon}</span>
     </button>;
+  if (!editable) return null;
   return <div className="row-actions">
     {module.table === "lancamentos" && !row.recebido_em && iconButton("Receber", "payments", () => onAction(row, "receber"))}
     {module.table === "lancamentos" && Boolean(row.recebido_em) && !row.repassado_em && <>{iconButton("Repassar", "send", () => onAction(row, "repassar"))}{iconButton("Estornar", "undo", () => onAction(row, "estornar"), true)}</>}
     {["iptus", "condominios", "seguros"].includes(module.table) && (Number(row.parcelas) === 0 || Number(row.parcelas_pagas) < Number(row.parcelas)) && <>{String(row.pago_ate ?? "") < month() && iconButton("Pagar mês", "event_available", () => onAction(row, "pagar-mes"))}{iconButton("Marcar mais uma parcela paga", "add_task", () => onAction(row, "pagar-parcela"))}</>}
     {module.table === "despesas" && row.situacao !== "pago" && iconButton("Pagar", "payments", () => onAction(row, "pagar"))}
-    {module.table === "notas_fiscais" && row.status !== "emitida" && iconButton("Marcar emitida", "task_alt", () => onAction(row, "emitir"))}
+    {module.table === "notas_fiscais" && row.status !== "emitida" && iconButton("Registrar emissão externa", "task_alt", () => onAction(row, "emitir"))}
     {module.table === "pendencias" && !row.repassado_em && iconButton("Repassar", "send", () => onAction(row, "repassar-pendencia"))}
     {iconButton("Editar", "edit", () => onEdit(row))}
     {module.table !== "caixas" && !(module.table === "lancamentos" && row.recebido_em) && iconButton(module.table === "contratos" ? "Encerrar" : "Excluir", module.table === "contratos" ? "block" : "delete", () => onDelete(row), true)}
   </div>;
 }
 
-function RowTable({ module, title, rows, search, onEdit, onDelete, onAction, onDeleteSelected }: {
-  module: Module; title?: string; rows: Row[]; search: string; onEdit: (row: Row) => void;
+function RowTable({ module, title, rows, search, onEdit, onDelete, onAction, onDeleteSelected, editable }: {
+  module: Module; title?: string; rows: Row[]; search: string; editable: boolean; onEdit: (row: Row) => void;
   onDelete: (row: Row) => void; onAction: (row: Row, action: string) => void;
   onDeleteSelected?: (rows: Row[]) => Promise<boolean>;
 }) {
@@ -125,19 +127,19 @@ function RowTable({ module, title, rows, search, onEdit, onDelete, onAction, onD
     </div>
     <div ref={tableRef} className={`table-scroll record-table ${fullTable ? "is-full" : "is-overview"}`} role={fullTable ? "region" : undefined} aria-label={fullTable ? `Tabela completa de ${sectionTitle}` : undefined} tabIndex={fullTable ? 0 : undefined}><table>
       <caption className="visually-hidden">{sectionTitle}</caption>
-      <thead><tr>{onDeleteSelected && <th scope="col" className="select-column"><input type="checkbox" aria-label="Selecionar todos os lançamentos não recebidos" checked={selectableRows.length > 0 && selected.length === selectableRows.length} onChange={(event) => setSelectedRows(event.target.checked ? new Set(selectableRows.map((row) => String(row[module.key]))) : new Set())} /></th>}{visibleColumns.map((name) => <th scope="col" key={name} className={moneyFields.has(name) ? "numeric" : undefined}>{labelFor(module, name)}</th>)}<th scope="col">Ações</th></tr></thead>
+      <thead><tr>{onDeleteSelected && <th scope="col" className="select-column"><input type="checkbox" aria-label="Selecionar todos os lançamentos não recebidos" checked={selectableRows.length > 0 && selected.length === selectableRows.length} onChange={(event) => setSelectedRows(event.target.checked ? new Set(selectableRows.map((row) => String(row[module.key]))) : new Set())} /></th>}{visibleColumns.map((name) => <th scope="col" key={name} className={moneyFields.has(name) ? "numeric" : undefined}>{labelFor(module, name)}</th>)}{editable && <th scope="col">Ações</th>}</tr></thead>
       <tbody>{filtered.length ? filtered.map((row) => {
         const key = String(row[module.key]);
         const expanded = expandedRows.has(key);
         return <Fragment key={key}><tr>
           {onDeleteSelected && <td className="select-column"><input type="checkbox" aria-label={`Selecionar ${valueFor(module, module.columns[0], row[module.columns[0]])}`} checked={!row.recebido_em && selectedRows.has(key)} disabled={Boolean(row.recebido_em)} onChange={() => toggleSelected(key)} /></td>}
           {visibleColumns.map((name, index) => index === 0 ? <th scope="row" key={name}>{state(name, row[name]) ?? valueFor(module, name, row[name])}{!fullTable && extraColumns.length > 0 && <button type="button" className="details-toggle" aria-label={`${expanded ? "Ocultar" : "Ver"} detalhes de ${labelFor(module, name)} ${valueFor(module, name, row[name])}`} aria-expanded={expanded} aria-controls={`${tableId}-${key}`} onClick={() => toggleDetails(key)}>{expanded ? "Ocultar detalhes" : "Ver detalhes"}</button>}</th> : <td key={name} className={moneyFields.has(name) ? "numeric" : undefined}>{state(name, row[name]) ?? valueFor(module, name, row[name])}</td>)}
-          <td><RowActions module={module} row={row} onEdit={onEdit} onDelete={onDelete} onAction={onAction} /></td>
-        </tr>{extraColumns.length > 0 && <tr id={`${tableId}-${key}`} className="expanded-row" hidden={fullTable || !expanded}><td colSpan={visibleColumns.length + 1 + Number(Boolean(onDeleteSelected))}><dl>{extraColumns.map((name) => <div key={name}><dt>{labelFor(module, name)}</dt><dd>{state(name, row[name]) ?? valueFor(module, name, row[name])}</dd></div>)}</dl></td></tr>}</Fragment>;
-      }) : <tr><td colSpan={visibleColumns.length + 1 + Number(Boolean(onDeleteSelected))} className="muted">Nenhum registro encontrado.</td></tr>}</tbody>
+          {editable && <td><RowActions module={module} row={row} editable={editable} onEdit={onEdit} onDelete={onDelete} onAction={onAction} /></td>}
+        </tr>{extraColumns.length > 0 && <tr id={`${tableId}-${key}`} className="expanded-row" hidden={fullTable || !expanded}><td colSpan={visibleColumns.length + Number(editable) + Number(Boolean(onDeleteSelected))}><dl>{extraColumns.map((name) => <div key={name}><dt>{labelFor(module, name)}</dt><dd>{state(name, row[name]) ?? valueFor(module, name, row[name])}</dd></div>)}</dl></td></tr>}</Fragment>;
+      }) : <tr><td colSpan={visibleColumns.length + Number(editable) + Number(Boolean(onDeleteSelected))} className="muted">Nenhum registro encontrado.</td></tr>}</tbody>
       {filtered.length > 0 && totals.length > 0 && fullTable && <tfoot><tr>{visibleColumns.map((name, index) => index === 0
         ? <th scope="row" colSpan={onDeleteSelected ? 2 : 1} key={name}>Total ({filtered.length})</th>
-        : <td key={name} className={moneyFields.has(name) ? "numeric" : undefined}>{totals.includes(name) ? currency.format(filtered.reduce((sum, row) => sum + amount(row[name]), 0)) : null}</td>)}<td /></tr></tfoot>}
+        : <td key={name} className={moneyFields.has(name) ? "numeric" : undefined}>{totals.includes(name) ? currency.format(filtered.reduce((sum, row) => sum + amount(row[name]), 0)) : null}</td>)}{editable && <td />}</tr></tfoot>}
     </table></div>
     {filtered.length > 0 && totals.length > 0 && !fullTable && <dl className="overview-totals">{totals.map((name) => <div key={name}><dt>{labelFor(module, name)}</dt><dd>{currency.format(filtered.reduce((sum, row) => sum + amount(row[name]), 0))}</dd></div>)}</dl>}
     <div className="record-cards">
@@ -150,7 +152,7 @@ function RowTable({ module, title, rows, search, onEdit, onDelete, onAction, onD
           <div className="record-heading"><div><span className="record-kicker">{labelFor(module, first)}</span><h3>{valueFor(module, first, row[first])}</h3>{module.columns[1] && <span className="record-subtitle">{labelFor(module, module.columns[1])}: {valueFor(module, module.columns[1], row[module.columns[1]])}</span>}</div>{statusName && state(statusName, row[statusName])}</div>
           {module.columns.length > 2 && fields(module.columns.slice(2, 5))}
           {module.columns.length > 5 && <details className="record-details"><summary aria-label={`Ver todos os dados de ${valueFor(module, first, row[first])}`}>Ver todos os dados</summary>{fields(module.columns.slice(5))}</details>}
-          <RowActions module={module} row={row} onEdit={onEdit} onDelete={onDelete} onAction={onAction} />
+          <RowActions module={module} row={row} editable={editable} onEdit={onEdit} onDelete={onDelete} onAction={onAction} />
         </article>;
       }) : <p className="muted">Nenhum registro encontrado.</p>}
       {filtered.length > 0 && totals.length > 0 && <div className="record-card record-summary"><strong>Total ({filtered.length})</strong><dl className="record-fields">{totals.map((name) => <div key={name}><dt>{labelFor(module, name)}</dt><dd>{currency.format(filtered.reduce((sum, row) => sum + amount(row[name]), 0))}</dd></div>)}</dl></div>}
@@ -158,7 +160,8 @@ function RowTable({ module, title, rows, search, onEdit, onDelete, onAction, onD
   </section>;
 }
 
-export function LiveSection({ section }: { section: DemoSection }) {
+export function LiveSection({ section, canEdit }: { section: DemoSection; canEdit: string[] }) {
+  const editable = (table: string) => canEdit.includes("*") || canEdit.includes(table);
   const [data, setData] = useState<Record<string, Row[]>>({});
   const [lookup, setLookup] = useState<Record<string, Row[]>>({});
   const [search, setSearch] = useState("");
@@ -280,6 +283,7 @@ export function LiveSection({ section }: { section: DemoSection }) {
   }
   async function rowAction(module: Module, row: Row, action: string) {
     if (action === "estornar" && !window.confirm("Estornar o recebimento e remover nota/pendências ainda não concluídas?")) return;
+    if (action === "emitir" && !window.confirm("Confirma que esta NFS-e já foi emitida no portal oficial? Esta ação apenas registra a emissão no sistema; ela não envia dados ao governo.")) return;
     const supabase = createClient();
     const id = row[module.key] as number;
     await run(async () => {
@@ -408,25 +412,25 @@ export function LiveSection({ section }: { section: DemoSection }) {
       {section.path === "lancamentos" && <><select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos</option><option value="recebido">Recebidos</option><option value="pendente">Pendentes</option></select><select aria-label="Ordem por vencimento" value={order} onChange={(event) => setOrder(event.target.value as "asc" | "desc")}><option value="asc">Vencimento crescente</option><option value="desc">Vencimento decrescente</option></select>
         <label>Venc. de <input type="number" min="1" max="31" value={dueFrom} onChange={(event) => setDueFrom(event.target.value)} className="day-input" /></label>
         <label>Até <input type="number" min="1" max="31" value={dueTo} onChange={(event) => setDueTo(event.target.value)} className="day-input" /></label>
-        <button className="primary" type="button" disabled={busy} onClick={generateMonth}>Gerar mês</button></>}
+        {editable("lancamentos") && <button className="primary" type="button" disabled={busy} onClick={generateMonth}>Gerar mês</button>}</>}
       {section.path === "cadastros" && <select aria-label="Tipo de pessoa" value={personType} onChange={(event) => setPersonType(event.target.value)}><option value="">Todas as pessoas</option><option value="inquilino">Inquilinos</option><option value="proprietario">Proprietários</option><option value="fiador">Fiadores</option></select>}
       {section.path === "contratos" && <select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos os contratos</option><option value="ativos">Somente ativos</option></select>}
       {section.path === "notas" && <select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todas</option><option value="a emitir">A emitir</option><option value="emitida">Emitidas</option></select>}
-      {section.path === "despesas" && <><select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todas</option><option value="pendente">Pendentes</option><option value="pago">Pagas</option></select><select aria-label="Categoria" value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)}><option value="">Todas as categorias</option><option value="fixas">Fixas e mensais</option><option value="ordinaria">Ordinárias</option></select><button type="button" onClick={() => copyDialog.current?.showModal()} disabled={busy}>Copiar despesas</button></>}
-      {(sectionModules[section.path] ?? []).filter((name) => modules[name]?.create !== false).map((name) => <button key={name} type="button" className="primary" disabled={busy} onClick={() => open(modules[name])}>Novo {modules[name].title.toLowerCase()}</button>)}
+      {section.path === "despesas" && <><select aria-label="Situação" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todas</option><option value="pendente">Pendentes</option><option value="pago">Pagas</option></select><select aria-label="Categoria" value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value)}><option value="">Todas as categorias</option><option value="fixas">Fixas e mensais</option><option value="ordinaria">Ordinárias</option></select>{editable("despesas") && <button type="button" onClick={() => copyDialog.current?.showModal()} disabled={busy}>Copiar despesas</button>}</>}
+      {(sectionModules[section.path] ?? []).filter((name) => modules[name]?.create !== false && editable(name)).map((name) => <button key={name} type="button" className="primary" disabled={busy} onClick={() => open(modules[name])}>Novo {modules[name].title.toLowerCase()}</button>)}
     </div>
     <p role="status" aria-live="polite" className="action-notice">{busy ? "Carregando..." : notice}</p>
     {cards.length > 0 && <div className="cards">{cards.map(([label, value]) => <div className={`card ${label.startsWith("Recebido") || label === "Comissão recebida" ? "green" : label === "A receber" || label === "Pendente" ? "orange" : label === "Despesas pendentes" ? "red" : ""}`} key={label}><div className="s">{label}</div><div className="v">{value}</div></div>)}</div>}
     {section.path === "dashboard" && <DashboardPanels data={data} competencia={competencia} search={search} />}
     {section.path === "dashboard" && <div className="panel-grid">
-      <RowTable module={modules.lancamentos} title="Pendentes de recebimento" rows={lancamentos.filter((row) => !row.recebido_em)} search={search} onEdit={(row) => open(modules.lancamentos, row)} onDelete={(row) => remove(modules.lancamentos, row)} onAction={(row, action) => rowAction(modules.lancamentos, row, action)} />
-      <RowTable module={modules.lancamentos} title="Recebidos aguardando repasse" rows={lancamentos.filter((row) => row.recebido_em && !row.repassado_em)} search={search} onEdit={(row) => open(modules.lancamentos, row)} onDelete={(row) => remove(modules.lancamentos, row)} onAction={(row, action) => rowAction(modules.lancamentos, row, action)} />
+      <RowTable module={modules.lancamentos} title="Pendentes de recebimento" rows={lancamentos.filter((row) => !row.recebido_em)} search={search} editable={editable("lancamentos")} onEdit={(row) => open(modules.lancamentos, row)} onDelete={(row) => remove(modules.lancamentos, row)} onAction={(row, action) => rowAction(modules.lancamentos, row, action)} />
+      <RowTable module={modules.lancamentos} title="Recebidos aguardando repasse" rows={lancamentos.filter((row) => row.recebido_em && !row.repassado_em)} search={search} editable={editable("lancamentos")} onEdit={(row) => open(modules.lancamentos, row)} onDelete={(row) => remove(modules.lancamentos, row)} onAction={(row, action) => rowAction(modules.lancamentos, row, action)} />
     </div>}
     {section.path === "controle" && <ControlPanels data={data} />}
-    {section.path === "controle" && <div className="panel-stack">{["lancamentos", "despesas", "iptus", "condominios", "seguros", "pendencias", "manutencoes"].map((name) => <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} />)}</div>}
-    {section.path === "contratos" && <ContractModels />}
-    {!["dashboard", "controle", "relatorios"].includes(section.path) && <div className="panel-stack">{(sectionModules[section.path] ?? []).flatMap((name) => name === "pendencias" && section.path === "iptus" ? ["iptu", "condominio"].map((kind) => <RowTable key={kind} module={modules.pendencias} title={kind === "iptu" ? "Repasses de IPTU" : "Repasses de condomínio"} rows={rowsFor(name).filter((row) => row.tipo === kind)} search={search} onEdit={(row) => open(modules.pendencias, row)} onDelete={(row) => remove(modules.pendencias, row)} onAction={(row, action) => rowAction(modules.pendencias, row, action)} />) : <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} onDeleteSelected={name === "lancamentos" && section.path === "lancamentos" ? removeSelected : undefined} />)}</div>}
-    {section.path === "notas" && <TaxSettings notes={data.notas_fiscais ?? []} onSaved={() => void load()} />}
+    {section.path === "controle" && <div className="panel-stack">{["lancamentos", "despesas", "iptus", "condominios", "seguros", "pendencias", "manutencoes"].map((name) => <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} editable={editable(name)} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} />)}</div>}
+    {section.path === "contratos" && <ContractModels editable={editable("contratos")} />}
+    {!["dashboard", "controle", "relatorios"].includes(section.path) && <div className="panel-stack">{(sectionModules[section.path] ?? []).flatMap((name) => name === "pendencias" && section.path === "iptus" ? ["iptu", "condominio"].map((kind) => <RowTable key={kind} module={modules.pendencias} title={kind === "iptu" ? "Repasses de IPTU" : "Repasses de condomínio"} rows={rowsFor(name).filter((row) => row.tipo === kind)} search={search} editable={editable(name)} onEdit={(row) => open(modules.pendencias, row)} onDelete={(row) => remove(modules.pendencias, row)} onAction={(row, action) => rowAction(modules.pendencias, row, action)} />) : <RowTable key={name} module={modules[name]} rows={rowsFor(name)} search={search} editable={editable(name)} onEdit={(row) => open(modules[name], row)} onDelete={(row) => remove(modules[name], row)} onAction={(row, action) => rowAction(modules[name], row, action)} onDeleteSelected={name === "lancamentos" && section.path === "lancamentos" && editable(name) ? removeSelected : undefined} />)}</div>}
+    {section.path === "notas" && <><section className="panel" aria-label="Integração fiscal"><h2>Emissão de NFS-e</h2><p>Os registros desta página são controles internos. “Registrar emissão externa” apenas atualiza a situação após a emissão no portal oficial; este sistema ainda não transmite notas ao governo.</p></section><MockFiscalFlow notes={(data.notas_fiscais ?? []).map((note) => ({ id: String(note.id), contratoNumero: String(note.contrato_numero), competencia: String(note.competencia), valor: Number(note.valor), status: String(note.status), proprietario: String(contractsByNumber.get(Number(note.contrato_numero))?.proprietario ?? ""), inquilino: String(contractsByNumber.get(Number(note.contrato_numero))?.inquilino ?? "") }))} /><TaxSettings notes={data.notas_fiscais ?? []} editable={editable("config")} onSaved={() => void load()} /></>}
     <dialog ref={dialog} className="edit-dialog" onClose={() => { setEditor(null); opener.current?.focus(); }} aria-label={editor ? `Editar ${editor.module.title}` : "Formulário"}>
       {editor && <form onSubmit={save}>
         <div className="dialog-heading"><h2>{editor.row ? "Editar" : "Novo"} · {editor.module.title}</h2><button type="button" onClick={close} aria-label="Fechar" title="Fechar"><span className="material-symbols-outlined" aria-hidden="true">close</span></button></div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DemoSection, DemoTable } from "@/features/demo/content";
+import { MockFiscalFlow } from "@/components/shared/mock-fiscal-flow";
 
 function DataTable({ table, query }: { table: DemoTable; query: string }) {
   const rows = table.rows.filter((row) => row.join(" ").toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")));
@@ -30,6 +31,7 @@ export function SectionView({ section }: { section: DemoSection }) {
     </div>
     <p className="action-notice" role="status" aria-live="polite">{notice}</p>
     {section.cards && <div className="cards">{section.cards.map((card) => <div className={`card ${card.tone ?? ""}`} key={card.label}><div className="s">{card.label}</div><div className="v">{card.value}</div></div>)}</div>}
+    {section.path === "notas" && <MockFiscalFlow notes={[{ id: "DEMO-002", contratoNumero: "DEMO-002", competencia: "2026-09", valor: 375, status: "a emitir", proprietario: "Cliente Exemplo", inquilino: "Inquilino Exemplo" }]} />}
     <div className={section.path === "dashboard" || section.path === "controle" || section.path === "relatorios" ? "panel-grid" : "panel-stack"}>{section.tables.map((table) => <DataTable key={table.title} table={table} query={query} />)}</div>
   </>;
 }

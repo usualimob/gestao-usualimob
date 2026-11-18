@@ -81,6 +81,17 @@ button.primary, .button-link { padding: 9px 18px; border: 0; border-radius: 8px;
 .panel-stack { display: grid; gap: 14px; }
 .panel { padding: 18px; min-width: 0; }
 .panel h2 { margin-bottom: 14px; color: var(--muted); font-size: .72rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.mock-fiscal-flow { display: grid; gap: 14px; margin-bottom: 14px; }
+.mock-fiscal-flow h2, .mock-fiscal-flow p { margin-bottom: 0; }
+.mock-fiscal-flow > button { justify-self: start; min-height: 40px; }
+.mock-fiscal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.mock-fiscal-grid label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .78rem; }
+.mock-fiscal-grid input, .mock-fiscal-grid select { width: 100%; }
+.mock-fiscal-grid select, .mock-fiscal-flow > button:not(.primary) { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--txt); font: inherit; }
+.mock-fiscal-consent { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .82rem; }
+.mock-fiscal-consent input { accent-color: var(--accent); }
+.mock-fiscal-result { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); overflow-wrap: anywhere; font-size: .84rem; }
+.mock-fiscal-result p { margin-top: 8px; }
 .table-scroll { max-width: 100%; overflow-x: auto; scrollbar-color: var(--border) transparent; }
 .table-scroll table { width: max-content; min-width: 100%; }
 .record-cards { display: none; }
@@ -162,6 +173,12 @@ tfoot th, tfoot td { border-top: 2px solid var(--border); border-bottom: 0; back
 .auth-card label { display: grid; gap: 6px; color: var(--muted); font-size: .78rem; }
 .auth-card form button { justify-self: start; }
 .auth-switch, .back-link { color: var(--muted); font-size: .82rem; }
+.team-panel form { display: grid; gap: 18px; margin-top: 16px; }
+.team-panel fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.team-panel legend { padding: 0 6px; color: var(--muted); font-size: .82rem; }
+.permission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.team-panel .check-field { display: flex; align-items: center; gap: 8px; }
+.team-panel form > button { justify-self: start; }
 .auth-switch a, .back-link { color: var(--accent); }
 :root[data-theme="light"] .auth-switch a, :root[data-theme="light"] .back-link { color: var(--accent); }
 .button-link { display: inline-block; margin-top: 16px; }
