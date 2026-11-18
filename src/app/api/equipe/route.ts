@@ -53,19 +53,21 @@ export async function PATCH(request: Request) {
   try { input = await request.json(); } catch { return NextResponse.json({ error: "Dados inválidos." }, { status: 400 }); }
   if (!input || typeof input !== "object" || Array.isArray(input)) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   const id = String(input.user_id ?? "");
+  const nome = typeof input.nome === "string" ? input.nome.trim() : "";
   const permissions = input.pode_editar;
-  if (!/^[0-9a-f-]{36}$/i.test(id) || id === currentId || typeof input.ativo !== "boolean"
-    || !Array.isArray(permissions) || permissions.some((name) => typeof name !== "string" || !tableNames.includes(name))) {
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !nome || nome.length > 120
+    || (id !== currentId && (typeof input.ativo !== "boolean" || !Array.isArray(permissions)
+      || permissions.some((name) => typeof name !== "string" || !tableNames.includes(name))))) {
     return NextResponse.json({ error: "Alteração inválida." }, { status: 400 });
   }
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin.from("equipe_usuarios").update({
-      ativo: input.ativo, pode_editar: [...new Set(permissions)],
-    }).eq("user_id", id).eq("papel", "funcionario").select("user_id").maybeSingle();
+    const { data, error } = await admin.from("equipe_usuarios").update(id === currentId
+      ? { nome } : { nome, ativo: input.ativo, pode_editar: [...new Set(permissions as string[])] })
+      .eq("user_id", id).eq("papel", id === currentId ? "admin" : "funcionario").select("user_id").maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Funcionário não encontrado." }, { status: 404 });
-    return NextResponse.json({ message: "Acessos atualizados." });
+    return NextResponse.json({ message: "Usuário atualizado." });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível salvar." }, { status: 400 });
   }

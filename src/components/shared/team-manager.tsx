@@ -6,7 +6,7 @@ import { editableTables } from "@/lib/team-permissions";
 
 type Member = { user_id: string; nome: string; email: string; papel: string; ativo: boolean; pode_editar: string[] };
 
-export function TeamManager({ members }: { members: Member[] }) {
+export function TeamManager({ members, currentId }: { members: Member[]; currentId: string }) {
   const router = useRouter();
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,7 @@ export function TeamManager({ members }: { members: Member[] }) {
 
   return <>
     <div className="page-intro"><div><p className="eyebrow">Administração</p><h1>Equipe</h1><p className="muted">Convide funcionários e escolha os módulos que podem alterar. Todos os integrantes ativos podem consultar os dados.</p></div></div>
-    <section className="panel team-panel"><h2>Adicionar usuário</h2>
+    <section className="panel team-panel"><h2>Adicionar usuário</h2><p className="muted">Informe o e-mail agora. O funcionário receberá um convite para ativar a conta.</p>
       <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void send("POST", { nome: form.get("nome"), email: form.get("email"), pode_editar: permissions(form) }); }}>
         <div className="form-grid"><label>Nome<input name="nome" required maxLength={120} autoComplete="name" /></label><label>E-mail<input name="email" type="email" required autoComplete="email" /></label></div>
         <fieldset><legend>Pode editar</legend>{boxes([])}</fieldset>
@@ -39,11 +39,12 @@ export function TeamManager({ members }: { members: Member[] }) {
     <p className="action-notice" role="status" aria-live="polite">{notice}</p>
     <div className="panel-stack">{members.map((member) => <section className="panel team-panel" key={member.user_id}>
       <h2>{member.nome || member.email}</h2><p className="muted">{member.email} · {member.papel === "admin" ? "Administrador" : member.ativo ? "Ativo" : "Desativado"}</p>
-      {member.papel === "funcionario" && <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void send("PATCH", { user_id: member.user_id, ativo: form.has("ativo"), pode_editar: permissions(form) }); }}>
-        <fieldset><legend>Permissões de edição</legend>{boxes(member.pode_editar)}</fieldset>
-        <label className="check-field"><input type="checkbox" name="ativo" defaultChecked={member.ativo} />Acesso ativo</label>
-        <button type="submit" disabled={busy}>Salvar acessos</button>
-      </form>}
+      <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void send("PATCH", { user_id: member.user_id, nome: form.get("nome"), ...(member.papel === "funcionario" ? { ativo: form.has("ativo"), pode_editar: permissions(form) } : {}) }); }}>
+        <div className="form-grid"><label>Nome<input name="nome" required maxLength={120} defaultValue={member.nome} /></label><label>E-mail de login<input value={member.email} readOnly /></label></div>
+        {member.papel === "funcionario" && <><fieldset><legend>Permissões de edição</legend>{boxes(member.pode_editar)}</fieldset>
+        <label className="check-field"><input type="checkbox" name="ativo" defaultChecked={member.ativo} />Acesso ativo</label></>}
+        <button type="submit" disabled={busy}>{member.user_id === currentId ? "Salvar nome" : "Salvar alterações"}</button>
+      </form>
     </section>)}</div>
   </>;
 }

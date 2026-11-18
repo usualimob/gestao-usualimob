@@ -17,5 +17,5 @@ export default async function TeamPage() {
   const { data: members, error } = await supabase.from("equipe_usuarios")
     .select("user_id,nome,email,papel,ativo,pode_editar").order("criado_em");
   if (error) return <p role="alert">Não foi possível carregar a equipe: {error.message}</p>;
-  return <TeamManager members={members ?? []} />;
+  return <TeamManager members={members ?? []} currentId={user.id} />;
 }
