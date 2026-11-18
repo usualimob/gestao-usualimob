@@ -43,7 +43,7 @@ export function TeamManager({ members, currentId }: { members: Member[]; current
         <div className="form-grid"><label>Nome<input name="nome" required maxLength={120} defaultValue={member.nome} /></label><label>E-mail de login<input value={member.email} readOnly /></label></div>
         {member.papel === "funcionario" && <><fieldset><legend>Permissões de edição</legend>{boxes(member.pode_editar)}</fieldset>
         <label className="check-field"><input type="checkbox" name="ativo" defaultChecked={member.ativo} />Acesso ativo</label></>}
-        <button type="submit" disabled={busy}>{member.user_id === currentId ? "Salvar nome" : "Salvar alterações"}</button>
+        <button type="submit" className="primary" disabled={busy}>{member.user_id === currentId ? "Salvar nome" : "Salvar alterações"}</button>
       </form>
     </section>)}</div>
   </>;

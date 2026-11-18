@@ -177,7 +177,7 @@ tfoot th, tfoot td { border-top: 2px solid var(--border); border-bottom: 0; back
 .team-panel legend { padding: 0 6px; color: var(--muted); font-size: .82rem; }
 .permission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 .team-panel .check-field { display: flex; align-items: center; gap: 8px; }
-.team-panel form > button { justify-self: start; }
+.team-panel form > button { justify-self: end; }
 .auth-switch a, .back-link { color: var(--accent); }
 :root[data-theme="light"] .auth-switch a, :root[data-theme="light"] .back-link { color: var(--accent); }
 .button-link { display: inline-block; margin-top: 16px; }
