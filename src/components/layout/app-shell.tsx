@@ -42,8 +42,8 @@ export function AppShell({ children, isAdmin = false }: { children: React.ReactN
     <header className="site-header">
       <Link href="/dashboard" className="brand" aria-label="Usualimob Gestão Imobiliária, início">USUALIMOB<small>gestão imobiliária</small></Link>
       <nav aria-label="Áreas do sistema">
+        {isAdmin && <Link href="/equipe" aria-current={pathname === "/equipe" ? "page" : undefined} className={pathname === "/equipe" ? "active" : ""}>Administração</Link>}
         {sections.map((section) => <Link key={section.path} href={`/${section.path}`} aria-current={pathname === `/${section.path}` ? "page" : undefined} className={pathname === `/${section.path}` ? "active" : ""}>{section.label}</Link>)}
-        {isAdmin && <Link href="/equipe" aria-current={pathname === "/equipe" ? "page" : undefined} className={pathname === "/equipe" ? "active" : ""}>Equipe</Link>}
       </nav>
       <button type="button" id="theme-toggle" onClick={toggleTheme} aria-label={themeLabel} title={themeLabel}><span className="material-symbols-outlined" aria-hidden="true">{theme === "dark" ? "light_mode" : "dark_mode"}</span></button>
       {supabaseConfigured ? <button type="button" className="header-link signout" onClick={async () => { await createClient().auth.signOut(); window.location.assign("/login"); }}>Sair</button> : <Link href="/login" className="header-link">Login</Link>}
