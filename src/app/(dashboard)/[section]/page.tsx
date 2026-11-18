@@ -5,6 +5,7 @@ import { LiveSection } from "@/components/shared/live-section";
 import { ReportsSection } from "@/components/shared/reports-section";
 import { sections } from "@/features/demo/content";
 import { createClient } from "@/lib/supabase/server";
+import { editingPermissions } from "@/lib/team-permissions";
 
 export function generateStaticParams() {
   return sections.map(({ path }) => ({ section: path }));
@@ -24,9 +25,9 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: member } = await supabase.from("equipe_usuarios").select("papel,pode_editar")
+    const { data: member } = await supabase.from("equipe_usuarios").select("*")
       .eq("user_id", user?.id ?? "").maybeSingle();
-    canEdit = member?.papel === "admin" ? ["*"] : member?.pode_editar ?? [];
+    canEdit = editingPermissions(member);
   }
   return process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
     ? path === "relatorios" ? <ReportsSection editable={canEdit.includes("*") || canEdit.includes("config")} /> : <LiveSection section={section} canEdit={canEdit} />

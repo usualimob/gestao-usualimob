@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fillContractModel } from "@/features/legacy/contract-document";
+import { isActiveMember } from "@/lib/team-permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +11,8 @@ export async function POST(request: Request) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
   if (!userId) return NextResponse.json({ error: "Faça login." }, { status: 401 });
-  const { data: member } = await supabase.from("equipe_usuarios").select("user_id,ativo").eq("user_id", userId).maybeSingle();
-  if (!member?.ativo) return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
+  const { data: member } = await supabase.from("equipe_usuarios").select("*").eq("user_id", userId).maybeSingle();
+  if (!isActiveMember(member)) return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
 
   try {
     const body: unknown = await request.json();

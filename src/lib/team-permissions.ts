@@ -9,3 +9,10 @@ export const editableTables = [
 ] as const;
 
 export const tableNames: string[] = [...new Set(editableTables.map(([name]) => name))];
+
+type Membership = { user_id: string; ativo?: boolean; papel?: string; pode_editar?: string[] } | null;
+
+export const isActiveMember = (member: Membership) => Boolean(member && member.ativo !== false);
+
+export const editingPermissions = (member: Membership): string[] =>
+  !isActiveMember(member) ? [] : member?.papel === "admin" || !Array.isArray(member?.pode_editar) ? ["*"] : member.pode_editar;
